@@ -1,0 +1,84 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>EasyLife - 简明任务管理</title>
+    <link rel="stylesheet" href="styles.css" />
+    <script defer src="app.js"></script>
+  </head>
+  <body>
+    <div class="app">
+      <header>
+        <div>
+          <h1>EasyLife</h1>
+          <p class="subtitle">简明任务管理，支持登录与记录。</p>
+        </div>
+        <button class="ghost" id="logoutButton" hidden>退出登录</button>
+      </header>
+
+      <section class="card" id="authCard">
+        <h2>欢迎使用 EasyLife</h2>
+        <p class="muted">请先登录或注册账号，数据仅存储在当前浏览器。</p>
+        <div class="auth-tabs" role="tablist">
+          <button type="button" class="tab active" data-target="loginPanel">登录</button>
+          <button type="button" class="tab" data-target="registerPanel">注册</button>
+        </div>
+        <div class="auth-panel" id="loginPanel" role="tabpanel">
+          <form id="loginForm">
+            <label>
+              用户名
+              <input type="text" name="username" required placeholder="输入用户名" />
+            </label>
+            <label>
+              密码
+              <input type="password" name="password" required placeholder="输入密码" />
+            </label>
+            <button type="submit">登录</button>
+          </form>
+        </div>
+        <div class="auth-panel" id="registerPanel" role="tabpanel" hidden>
+          <form id="registerForm">
+            <label>
+              用户名
+              <input type="text" name="username" required placeholder="设置用户名" />
+            </label>
+            <label>
+              密码
+              <input type="password" name="password" required placeholder="设置密码" />
+            </label>
+            <label>
+              再次输入密码
+              <input type="password" name="confirmPassword" required placeholder="再次输入密码" />
+            </label>
+            <button type="submit">注册并登录</button>
+          </form>
+        </div>
+      </section>
+
+      <section class="workspace" id="workspace" hidden>
+        <div class="panel">
+          <div class="panel-header">
+            <h2>我的 Todo</h2>
+            <span class="badge" id="todoCount">0</span>
+          </div>
+          <form id="todoForm" class="todo-form">
+            <label>
+              标题
+              <input type="text" name="title" required placeholder="例如：完成每周周报" />
+            </label>
+            <label>
+              记录
+              <textarea name="content" rows="6" required placeholder="记录详情，例如：\n- 事项一\n- 事项二"></textarea>
+            </label>
+            <div class="form-actions">
+              <button type="submit" id="submitTodoButton">新增 Todo</button>
+              <button type="button" class="ghost" id="cancelEditButton" hidden>取消编辑</button>
+            </div>
+          </form>
+          <div class="todo-list" id="todoList"></div>
+        </div>
+      </section>
+    </div>
+  </body>
+</html>
