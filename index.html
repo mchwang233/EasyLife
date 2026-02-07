@@ -49,7 +49,10 @@
               Markdown 记录
               <textarea name="content" rows="6" required placeholder="支持 Markdown，例如：\n- 事项一\n- 事项二\n\n**加粗重点**"></textarea>
             </label>
-            <button type="submit">新增 Todo</button>
+            <div class="form-actions">
+              <button type="submit" id="submitTodoButton">新增 Todo</button>
+              <button type="button" class="ghost" id="cancelEditButton" hidden>取消编辑</button>
+            </div>
           </form>
           <div class="todo-list" id="todoList"></div>
         </div>

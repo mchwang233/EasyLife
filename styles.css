@@ -123,6 +123,12 @@ button.ghost {
   margin-bottom: 24px;
 }
 
+.form-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+
 .todo-list {
   display: grid;
   gap: 12px;

@@ -7,6 +7,8 @@ const todoList = document.querySelector("#todoList");
 const todoCount = document.querySelector("#todoCount");
 const previewContent = document.querySelector("#previewContent");
 const selectedTodoBadge = document.querySelector("#selectedTodoBadge");
+const submitTodoButton = document.querySelector("#submitTodoButton");
+const cancelEditButton = document.querySelector("#cancelEditButton");
 
 const STORAGE_KEY = "easylife.todos";
 const USER_KEY = "easylife.user";
@@ -15,6 +17,7 @@ const state = {
   user: null,
   todos: [],
   activeId: null,
+  editingId: null,
 };
 
 const formatter = new Intl.DateTimeFormat("zh-CN", {
@@ -50,6 +53,14 @@ const toggleAuthUI = (isLoggedIn) => {
   logoutButton.hidden = !isLoggedIn;
 };
 
+const isLoggedIn = () => Boolean(state.user);
+
+const ensureLoggedIn = () => {
+  if (isLoggedIn()) return true;
+  toggleAuthUI(false);
+  return false;
+};
+
 const renderTodos = () => {
   todoList.innerHTML = "";
   todoCount.textContent = state.todos.length;
@@ -74,7 +85,10 @@ const renderTodos = () => {
 
     const meta = document.createElement("div");
     meta.className = "todo-meta";
-    meta.innerHTML = `<span>创建于 ${formatter.format(new Date(todo.createdAt))}</span><span>${todo.owner}</span>`;
+    const updatedMeta = todo.updatedAt
+      ? ` · 更新于 ${formatter.format(new Date(todo.updatedAt))}`
+      : "";
+    meta.innerHTML = `<span>创建于 ${formatter.format(new Date(todo.createdAt))}${updatedMeta}</span><span>${todo.owner}</span>`;
 
     const actions = document.createElement("div");
     actions.className = "todo-actions";
@@ -84,13 +98,25 @@ const renderTodos = () => {
     selectButton.textContent = "查看";
     selectButton.addEventListener("click", () => selectTodo(todo.id));
 
+    const editButton = document.createElement("button");
+    editButton.type = "button";
+    editButton.className = "ghost";
+    editButton.textContent = "编辑";
+    editButton.addEventListener("click", (event) => {
+      event.stopPropagation();
+      startEdit(todo.id);
+    });
+
     const deleteButton = document.createElement("button");
     deleteButton.type = "button";
     deleteButton.className = "delete";
     deleteButton.textContent = "删除";
-    deleteButton.addEventListener("click", () => deleteTodo(todo.id));
+    deleteButton.addEventListener("click", (event) => {
+      event.stopPropagation();
+      deleteTodo(todo.id);
+    });
 
-    actions.append(selectButton, deleteButton);
+    actions.append(selectButton, editButton, deleteButton);
 
     item.append(title, meta, actions);
     item.addEventListener("click", () => selectTodo(todo.id));
@@ -100,6 +126,11 @@ const renderTodos = () => {
 };
 
 const renderPreview = () => {
+  if (!isLoggedIn()) {
+    selectedTodoBadge.textContent = "未登录";
+    previewContent.innerHTML = '<p class="muted">登录后可查看 Todo 的 Markdown 预览。</p>';
+    return;
+  }
   const active = state.todos.find((todo) => todo.id === state.activeId);
   if (!active) {
     selectedTodoBadge.textContent = "未选择";
@@ -112,19 +143,42 @@ const renderPreview = () => {
 };
 
 const selectTodo = (id) => {
+  if (!ensureLoggedIn()) return;
   state.activeId = id;
   renderTodos();
   renderPreview();
 };
 
 const deleteTodo = (id) => {
+  if (!ensureLoggedIn()) return;
   state.todos = state.todos.filter((todo) => todo.id !== id);
   if (state.activeId === id) {
     state.activeId = null;
   }
+  if (state.editingId === id) {
+    resetForm();
+  }
   saveTodos();
   renderTodos();
   renderPreview();
+};
+
+const resetForm = () => {
+  todoForm.reset();
+  state.editingId = null;
+  submitTodoButton.textContent = "新增 Todo";
+  cancelEditButton.hidden = true;
+};
+
+const startEdit = (id) => {
+  if (!ensureLoggedIn()) return;
+  const todo = state.todos.find((item) => item.id === id);
+  if (!todo) return;
+  state.editingId = id;
+  todoForm.elements.title.value = todo.title;
+  todoForm.elements.content.value = todo.content;
+  submitTodoButton.textContent = "保存修改";
+  cancelEditButton.hidden = false;
 };
 
 loginForm.addEventListener("submit", (event) => {
@@ -142,30 +196,48 @@ loginForm.addEventListener("submit", (event) => {
 logoutButton.addEventListener("click", () => {
   localStorage.removeItem(USER_KEY);
   state.user = null;
+  state.activeId = null;
+  resetForm();
   toggleAuthUI(false);
+  renderPreview();
 });
 
 todoForm.addEventListener("submit", (event) => {
   event.preventDefault();
+  if (!ensureLoggedIn()) return;
   const data = new FormData(todoForm);
   const title = data.get("title").trim();
   const content = data.get("content").trim();
   if (!title || !content) return;
 
-  const newTodo = {
-    id: crypto.randomUUID(),
-    title,
-    content,
-    owner: state.user,
-    createdAt: new Date().toISOString(),
-  };
+  if (state.editingId) {
+    const existing = state.todos.find((todo) => todo.id === state.editingId);
+    if (!existing) return;
+    existing.title = title;
+    existing.content = content;
+    existing.updatedAt = new Date().toISOString();
+    state.activeId = existing.id;
+  } else {
+    const newTodo = {
+      id: crypto.randomUUID(),
+      title,
+      content,
+      owner: state.user,
+      createdAt: new Date().toISOString(),
+      updatedAt: null,
+    };
 
-  state.todos.unshift(newTodo);
-  state.activeId = newTodo.id;
+    state.todos.unshift(newTodo);
+    state.activeId = newTodo.id;
+  }
   saveTodos();
-  todoForm.reset();
+  resetForm();
   renderTodos();
   renderPreview();
+});
+
+cancelEditButton.addEventListener("click", () => {
+  resetForm();
 });
 
 const init = () => {
