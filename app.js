@@ -1,4 +1,5 @@
 const loginForm = document.querySelector("#loginForm");
+const registerForm = document.querySelector("#registerForm");
 const logoutButton = document.querySelector("#logoutButton");
 const authCard = document.querySelector("#authCard");
 const workspace = document.querySelector("#workspace");
@@ -9,9 +10,12 @@ const previewContent = document.querySelector("#previewContent");
 const selectedTodoBadge = document.querySelector("#selectedTodoBadge");
 const submitTodoButton = document.querySelector("#submitTodoButton");
 const cancelEditButton = document.querySelector("#cancelEditButton");
+const authTabs = document.querySelectorAll(".auth-tabs .tab");
+const authPanels = document.querySelectorAll(".auth-panel");
 
 const STORAGE_KEY = "easylife.todos";
 const USER_KEY = "easylife.user";
+const USERS_KEY = "easylife.users";
 
 const state = {
   user: null,
@@ -46,6 +50,30 @@ const setUser = (username) => {
 };
 
 const getUser = () => localStorage.getItem(USER_KEY);
+
+const loadUsers = () => {
+  const raw = localStorage.getItem(USERS_KEY);
+  if (!raw) return {};
+  try {
+    return JSON.parse(raw);
+  } catch (error) {
+    console.error("无法解析用户数据", error);
+    return {};
+  }
+};
+
+const saveUsers = (users) => {
+  localStorage.setItem(USERS_KEY, JSON.stringify(users));
+};
+
+const showAuthTab = (targetId) => {
+  authPanels.forEach((panel) => {
+    panel.hidden = panel.id !== targetId;
+  });
+  authTabs.forEach((tab) => {
+    tab.classList.toggle("active", tab.dataset.target === targetId);
+  });
+};
 
 const toggleAuthUI = (isLoggedIn) => {
   authCard.hidden = isLoggedIn;
@@ -185,10 +213,41 @@ loginForm.addEventListener("submit", (event) => {
   event.preventDefault();
   const data = new FormData(loginForm);
   const username = data.get("username").trim();
-  if (!username) return;
+  const password = data.get("password").trim();
+  if (!username || !password) return;
+  const users = loadUsers();
+  if (!users[username] || users[username] !== password) {
+    alert("用户名或密码错误，请重试。");
+    return;
+  }
   setUser(username);
   toggleAuthUI(true);
   loginForm.reset();
+  renderTodos();
+  renderPreview();
+});
+
+registerForm.addEventListener("submit", (event) => {
+  event.preventDefault();
+  const data = new FormData(registerForm);
+  const username = data.get("username").trim();
+  const password = data.get("password").trim();
+  const confirmPassword = data.get("confirmPassword").trim();
+  if (!username || !password) return;
+  if (password !== confirmPassword) {
+    alert("两次输入的密码不一致，请检查。");
+    return;
+  }
+  const users = loadUsers();
+  if (users[username]) {
+    alert("用户名已存在，请更换。");
+    return;
+  }
+  users[username] = password;
+  saveUsers(users);
+  setUser(username);
+  toggleAuthUI(true);
+  registerForm.reset();
   renderTodos();
   renderPreview();
 });
@@ -249,6 +308,12 @@ const init = () => {
   } else {
     toggleAuthUI(false);
   }
+  authTabs.forEach((tab) => {
+    tab.addEventListener("click", () => {
+      showAuthTab(tab.dataset.target);
+    });
+  });
+  showAuthTab("loginPanel");
   renderTodos();
   renderPreview();
 };

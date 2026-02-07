@@ -19,19 +19,42 @@
       </header>
 
       <section class="card" id="authCard">
-        <h2>登录</h2>
-        <p class="muted">使用任意用户名即可开始，数据仅存储在当前浏览器。</p>
-        <form id="loginForm">
-          <label>
-            用户名
-            <input type="text" name="username" required placeholder="输入用户名" />
-          </label>
-          <label>
-            密码
-            <input type="password" name="password" required placeholder="输入密码" />
-          </label>
-          <button type="submit">开始使用</button>
-        </form>
+        <h2>欢迎使用 EasyLife</h2>
+        <p class="muted">请先登录或注册账号，数据仅存储在当前浏览器。</p>
+        <div class="auth-tabs" role="tablist">
+          <button type="button" class="tab active" data-target="loginPanel">登录</button>
+          <button type="button" class="tab" data-target="registerPanel">注册</button>
+        </div>
+        <div class="auth-panel" id="loginPanel" role="tabpanel">
+          <form id="loginForm">
+            <label>
+              用户名
+              <input type="text" name="username" required placeholder="输入用户名" />
+            </label>
+            <label>
+              密码
+              <input type="password" name="password" required placeholder="输入密码" />
+            </label>
+            <button type="submit">登录</button>
+          </form>
+        </div>
+        <div class="auth-panel" id="registerPanel" role="tabpanel" hidden>
+          <form id="registerForm">
+            <label>
+              用户名
+              <input type="text" name="username" required placeholder="设置用户名" />
+            </label>
+            <label>
+              密码
+              <input type="password" name="password" required placeholder="设置密码" />
+            </label>
+            <label>
+              再次输入密码
+              <input type="password" name="confirmPassword" required placeholder="再次输入密码" />
+            </label>
+            <button type="submit">注册并登录</button>
+          </form>
+        </div>
       </section>
 
       <section class="workspace" id="workspace" hidden>
