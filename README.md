@@ -1,12 +1,12 @@
 # EasyLife
 
-EasyLife 是一个简明的任务管理网页应用，可在浏览器中登录、创建 Todo，并使用 Markdown 记录详情。
+EasyLife 是一个简明的任务管理网页应用，可在浏览器中登录、创建 Todo，并记录详情。
 
 ## 功能
 
 - 本地注册/登录（浏览器存储）
 - 创建/查看/编辑/删除 Todo
-- Markdown 记录与预览
+- 任务记录详情
 - 数据保存在本地 `localStorage`
 
 ## 使用方式

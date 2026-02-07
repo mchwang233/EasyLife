@@ -5,7 +5,6 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>EasyLife - 简明任务管理</title>
     <link rel="stylesheet" href="styles.css" />
-    <script defer src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
     <script defer src="app.js"></script>
   </head>
   <body>
@@ -13,7 +12,7 @@
       <header>
         <div>
           <h1>EasyLife</h1>
-          <p class="subtitle">简明任务管理，支持登录与 Markdown 记录。</p>
+          <p class="subtitle">简明任务管理，支持登录与记录。</p>
         </div>
         <button class="ghost" id="logoutButton" hidden>退出登录</button>
       </header>
@@ -69,8 +68,8 @@
               <input type="text" name="title" required placeholder="例如：完成每周周报" />
             </label>
             <label>
-              Markdown 记录
-              <textarea name="content" rows="6" required placeholder="支持 Markdown，例如：\n- 事项一\n- 事项二\n\n**加粗重点**"></textarea>
+              记录
+              <textarea name="content" rows="6" required placeholder="记录详情，例如：\n- 事项一\n- 事项二"></textarea>
             </label>
             <div class="form-actions">
               <button type="submit" id="submitTodoButton">新增 Todo</button>
@@ -78,16 +77,6 @@
             </div>
           </form>
           <div class="todo-list" id="todoList"></div>
-        </div>
-
-        <div class="panel preview">
-          <div class="panel-header">
-            <h2>Markdown 预览</h2>
-            <span class="badge" id="selectedTodoBadge">未选择</span>
-          </div>
-          <div class="preview-content" id="previewContent">
-            <p class="muted">请选择左侧的 Todo 查看 Markdown 预览。</p>
-          </div>
         </div>
       </section>
     </div>

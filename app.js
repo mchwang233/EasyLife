@@ -6,8 +6,6 @@ const workspace = document.querySelector("#workspace");
 const todoForm = document.querySelector("#todoForm");
 const todoList = document.querySelector("#todoList");
 const todoCount = document.querySelector("#todoCount");
-const previewContent = document.querySelector("#previewContent");
-const selectedTodoBadge = document.querySelector("#selectedTodoBadge");
 const submitTodoButton = document.querySelector("#submitTodoButton");
 const cancelEditButton = document.querySelector("#cancelEditButton");
 const authTabs = document.querySelectorAll(".auth-tabs .tab");
@@ -153,28 +151,10 @@ const renderTodos = () => {
   });
 };
 
-const renderPreview = () => {
-  if (!isLoggedIn()) {
-    selectedTodoBadge.textContent = "未登录";
-    previewContent.innerHTML = '<p class="muted">登录后可查看 Todo 的 Markdown 预览。</p>';
-    return;
-  }
-  const active = state.todos.find((todo) => todo.id === state.activeId);
-  if (!active) {
-    selectedTodoBadge.textContent = "未选择";
-    previewContent.innerHTML = '<p class="muted">请选择左侧的 Todo 查看 Markdown 预览。</p>';
-    return;
-  }
-
-  selectedTodoBadge.textContent = active.title;
-  previewContent.innerHTML = marked.parse(active.content);
-};
-
 const selectTodo = (id) => {
   if (!ensureLoggedIn()) return;
   state.activeId = id;
   renderTodos();
-  renderPreview();
 };
 
 const deleteTodo = (id) => {
@@ -188,7 +168,6 @@ const deleteTodo = (id) => {
   }
   saveTodos();
   renderTodos();
-  renderPreview();
 };
 
 const resetForm = () => {
@@ -224,7 +203,6 @@ loginForm.addEventListener("submit", (event) => {
   toggleAuthUI(true);
   loginForm.reset();
   renderTodos();
-  renderPreview();
 });
 
 registerForm.addEventListener("submit", (event) => {
@@ -249,7 +227,6 @@ registerForm.addEventListener("submit", (event) => {
   toggleAuthUI(true);
   registerForm.reset();
   renderTodos();
-  renderPreview();
 });
 
 logoutButton.addEventListener("click", () => {
@@ -258,7 +235,6 @@ logoutButton.addEventListener("click", () => {
   state.activeId = null;
   resetForm();
   toggleAuthUI(false);
-  renderPreview();
 });
 
 todoForm.addEventListener("submit", (event) => {
@@ -292,7 +268,6 @@ todoForm.addEventListener("submit", (event) => {
   saveTodos();
   resetForm();
   renderTodos();
-  renderPreview();
 });
 
 cancelEditButton.addEventListener("click", () => {
@@ -315,7 +290,6 @@ const init = () => {
   });
   showAuthTab("loginPanel");
   renderTodos();
-  renderPreview();
 };
 
 init();
