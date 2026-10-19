@@ -2,17 +2,17 @@
  * 布局原则：一列为主、信息密度适中；任务一行一条，只显示有信息量的标记。 */
 :root {
   color-scheme: light;
-  --bg: #f5f3ee;
-  --card: #fffefb;
-  --surface: #edf2ec;
-  --text: #343d36;
-  --muted: #626b60;
-  --line: #e4e6dd;
+  --bg: #f5f6f2;
+  --card: #ffffff;
+  --surface: #eff3ee;
+  --text: #223c33;
+  --muted: #5b6e64;
+  --line: #e3e8e3;
   --input-line: #829489;
-  --primary: #426557;
-  --primary-hover: #355344;
-  --on-primary: #fffefb;
-  --primary-soft: #edf2ec;
+  --primary: #24664f;
+  --primary-hover: #194f3c;
+  --on-primary: #ffffff;
+  --primary-soft: #e5f1e9;
   --danger: #a6303e;
   --danger-bg: #fff0f0;
   --ok: #216244;
@@ -20,14 +20,14 @@
   --warn: #78500e;
   --warn-bg: #fff2d9;
   --focus: #2768b0;
-  --hover: rgb(66 101 87 / 5%);
+  --hover: rgb(36 102 79 / 5%);
   /* 优先级：高=红、中=琥珀、低=蓝、最低=灰；文字色与对应浅底均 ≥ 4.5:1。 */
   --p3: #b4232f; --p3-bg: #fdeced;
   --p2: #8a5300; --p2-bg: #fcf0d9;
   --p1: #23599a; --p1-bg: #e6eefa;
   --p0: #5b6e64; --p0-bg: #edf1ee;
   --scrim: rgb(10 25 17 / 45%);
-  --radius: 12px;
+  --radius: 14px;
   --radius-sm: 8px;
   --shadow: 0 1px 2px rgb(29 57 43 / 6%), 0 2px 12px rgb(29 57 43 / 4%);
   --shadow-lift: 0 12px 40px rgb(29 57 43 / 16%);
@@ -126,9 +126,9 @@ a { color: var(--primary); }
 
 .site-header {
   position: sticky; top: 0; z-index: 20;
-  display: flex; flex-wrap: wrap; align-items: center; gap: 12px 20px;
-  min-height: 76px;
-  padding: 12px max(28px, calc((100% - 1240px) / 2));
+  display: flex; align-items: center; gap: var(--space-4);
+  height: 56px;
+  padding: 0 max(var(--space-4), calc((100% - var(--page)) / 2));
   background: color-mix(in srgb, var(--bg) 88%, transparent);
   backdrop-filter: saturate(1.4) blur(10px);
   -webkit-backdrop-filter: saturate(1.4) blur(10px);
@@ -136,17 +136,16 @@ a { color: var(--primary); }
 }
 
 .brand-link {
-  display: inline-flex; align-items: center; gap: 12px;
-  min-width: 0;
+  display: inline-flex; align-items: center; gap: 8px;
   color: var(--text); text-decoration: none;
   font-weight: 700; font-size: 1.05rem;
 }
-.brand-link img { flex: 0 0 36px; width: 36px; height: 36px; border-radius: 10px; }
+.brand-link img { border-radius: 7px; }
 
 .workspace-nav { display: flex; gap: 2px; }
 .nav-link {
   display: inline-flex; align-items: center; gap: 6px;
-  min-height: 40px; padding: 0 12px;
+  min-height: 34px; padding: 0 12px;
   border: 0; border-radius: var(--radius-sm);
   background: transparent; color: var(--muted);
   font: inherit; font-size: .875rem; font-weight: 600;
@@ -155,10 +154,10 @@ a { color: var(--primary); }
 .nav-link:hover { color: var(--text); background: var(--hover); }
 .nav-link[aria-current="page"], .nav-link.is-active { color: var(--primary); background: var(--primary-soft); }
 
-.topbar-actions { display: flex; align-items: center; gap: var(--space-2); min-width: 0; margin-left: auto; }
+.topbar-actions { display: flex; align-items: center; gap: var(--space-2); margin-left: auto; }
 
 .theme-select {
-  width: auto; min-height: 40px;
+  width: auto; min-height: 34px;
   padding: 0 26px 0 10px;
   font-size: .8125rem;
   border-color: var(--line);
@@ -166,7 +165,7 @@ a { color: var(--primary); }
 }
 
 .account-nav { position: relative; }
-.account-toggle { min-height: 40px; padding: 0 10px; font-size: .875rem; }
+.account-toggle { min-height: 34px; padding: 0 10px; font-size: .875rem; }
 .caret { font-size: .7rem; margin-left: 4px; }
 .account-panel {
   position: absolute; right: 0; top: calc(100% + 6px); z-index: 30;
@@ -208,9 +207,7 @@ a { color: var(--primary); }
 .wrap:focus { outline: none; }
 
 .site-footer {
-  width: calc(100% - 56px); max-width: 1240px; margin: 0 auto;
   padding: var(--space-4);
-  border-top: 1px solid var(--line);
   text-align: center;
   color: var(--muted); font-size: .75rem;
 }
@@ -250,7 +247,7 @@ input, textarea, select {
   /* 填充式输入框：浅底无描边，悬停出现细边，聚焦时白底 + 主色光圈。 */
   background: var(--surface);
   border: 1px solid transparent;
-  border-radius: var(--radius-sm);
+  border-radius: 10px;
   transition: border-color .15s, box-shadow .15s, background-color .15s;
 }
 input:hover, textarea:hover, select:hover { border-color: var(--line); }
@@ -306,12 +303,12 @@ select {
   display: flex; gap: 2px;
   padding: 3px;
   background: var(--surface);
-  border-radius: var(--radius-sm);
+  border-radius: 10px;
 }
 .seg-btn {
   flex: 1 1 0; min-width: 0;
   min-height: 34px; padding: 0 8px;
-  border: 0; border-radius: var(--radius-sm);
+  border: 0; border-radius: 7px;
   background: transparent; color: var(--muted);
   font: inherit; font-size: .875rem; font-weight: 600;
   cursor: pointer; white-space: nowrap;
@@ -336,7 +333,7 @@ select {
   display: flex; align-items: center; gap: 8px;
   width: 100%; min-height: var(--control);
   padding: 0 34px 0 12px;
-  border: 1px solid transparent; border-radius: var(--radius-sm);
+  border: 1px solid transparent; border-radius: 10px;
   background: var(--surface); color: var(--text);
   font: inherit; font-size: .9rem; font-weight: 500;
   text-align: left; cursor: pointer;
@@ -455,7 +452,7 @@ select {
 .dt-foot { display: flex; justify-content: flex-end; gap: var(--space-2); margin-top: var(--space-3); }
 .dt-foot .btn { min-height: 36px; }
 
-.theme-toggle { min-height: 40px; padding: 0 10px; font-size: .8125rem; font-weight: 500; color: var(--muted); }
+.theme-toggle { min-height: 34px; padding: 0 10px; font-size: .8125rem; font-weight: 500; color: var(--muted); }
 .theme-toggle:hover { color: var(--text); }
 
 /* ------------------------------------------------------------ 按钮 */
@@ -534,7 +531,7 @@ select {
 .mail-symbol {
   display: grid; place-items: center;
   width: 48px; height: 48px; margin-bottom: var(--space-4);
-  border-radius: var(--radius);
+  border-radius: 14px;
   background: var(--primary-soft); color: var(--primary);
   font-size: 1.5rem; font-weight: 700;
 }
@@ -542,11 +539,11 @@ select {
 .tabs {
   display: grid; grid-template-columns: 1fr 1fr; gap: 4px;
   padding: 4px; margin-bottom: var(--space-2);
-  background: var(--surface); border-radius: var(--radius-sm);
+  background: var(--surface); border-radius: 10px;
 }
 .tab {
   min-height: 36px;
-  border: 0; border-radius: var(--radius-sm);
+  border: 0; border-radius: 7px;
   background: transparent; color: var(--muted);
   font: inherit; font-size: .875rem; font-weight: 600; cursor: pointer;
 }
@@ -903,7 +900,7 @@ button.md-box:hover { border-color: var(--primary); }
 /* ------------------------------------------------------------ 设置 */
 
 .settings-grid { display: grid; grid-template-columns: 180px minmax(0, 1fr); gap: var(--space-4); align-items: start; }
-.settings-sections { display: grid; gap: 2px; position: sticky; top: 92px; }
+.settings-sections { display: grid; gap: 2px; position: sticky; top: 72px; }
 .settings-sections .nav-link { justify-content: flex-start; min-height: 38px; }
 /* 普通用户只有「日历订阅」一项，不必显示单独的分类导航。 */
 .settings-grid:not(:has(#nav-mail-settings:not([hidden]))) { grid-template-columns: minmax(0, 1fr); }
@@ -954,14 +951,12 @@ body.has-modal { overflow: hidden; }
 
 @media (min-width: 960px) {
   .detail-grid { grid-template-columns: minmax(0, 1.5fr) minmax(0, 1fr); align-items: start; }
-  .notes-card { position: sticky; top: 92px; }
+  .notes-card { position: sticky; top: 72px; }
 }
 
 /* ------------------------------------------------------------ 平板 */
 
 @media (max-width: 720px) {
-  .site-header { padding: 12px 14px; }
-  .site-footer { width: calc(100% - 28px); }
   .settings-grid { grid-template-columns: 1fr; }
   .settings-sections { position: static; display: flex; overflow-x: auto; }
 }
@@ -969,13 +964,11 @@ body.has-modal { overflow: hidden; }
 /* ------------------------------------------------------------ 手机 */
 
 @media (max-width: 560px) {
-  :root { --control: 44px; }
   body { font-size: 15px; }
-  .site-header { gap: 10px 12px; }
-  .workspace-nav .nav-link { min-height: 44px; padding: 0 8px; }
-  .topbar-actions { flex: 1 1 auto; justify-content: flex-end; }
-  .theme-select { min-height: 44px; max-width: 92px; }
-  .account-toggle { min-height: 44px; padding: 0 8px; }
+  .site-header { gap: var(--space-2); height: 52px; }
+  .site-header:has(#workspace-nav:not([hidden])) .brand-link span { display: none; }
+  .workspace-nav .nav-link { padding: 0 10px; }
+  .theme-select { max-width: 92px; }
 
   .wrap { padding: var(--space-4) var(--space-3) var(--space-6); }
   h1 { font-size: 1.3rem; }
@@ -1025,6 +1018,7 @@ body.has-modal { overflow: hidden; }
 }
 
 @media (max-width: 360px) {
+  .workspace-nav { display: none; }
   .detail-card .grid { grid-template-columns: 1fr; }
 }
 
