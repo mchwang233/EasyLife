@@ -8,17 +8,23 @@
 <link rel="icon" type="image/svg+xml" href="./static/favicon.svg">
 <link rel="apple-touch-icon" href="./static/apple-touch-icon.png">
 <meta name="apple-mobile-web-app-title" content="EasyLife">
-<meta name="theme-color" content="#24664f">
+<meta name="theme-color" content="#426557">
 <link rel="stylesheet" href="./static/style.css">
 </head>
 <body>
 <a class="skip-link" href="#app">跳到主要内容</a>
 <header class="site-header">
-  <a class="brand-link" href="#/todos" aria-label="EasyLife 首页">
-    <img src="./static/favicon.svg" width="28" height="28" alt="">
-    <span>EasyLife</span>
+  <div class="site-header-inner">
+  <a class="brand-link" href="https://mch.wang/" aria-label="追逐星墨首页 · EasyLife">
+    <img src="./static/favicon.svg" width="36" height="36" alt="">
+    <span class="brand-copy"><strong class="brand-title">追逐星墨</strong><small class="brand-subtitle">EasyLife · 任务与提醒</small></span>
   </a>
-  <nav id="workspace-nav" class="workspace-nav" aria-label="主要导航" hidden>
+  <nav class="site-nav" aria-label="全站导航">
+    <a class="site-nav-link" href="https://mch.wang/">首页</a>
+    <a class="site-nav-link" href="https://mch.wang/article/">文章</a>
+    <a class="site-nav-link" href="#/todos" aria-current="page">待办</a>
+  </nav>
+  <nav id="workspace-nav" class="workspace-nav" aria-label="EasyLife 导航" hidden>
     <a id="nav-todos" class="nav-link" href="#/todos" aria-current="page">任务</a>
     <button type="button" id="nav-settings" class="nav-link">设置</button>
   </nav>
@@ -40,6 +46,7 @@
       </div>
     </div>
   </nav>
+  </div>
 </header>
 <div id="verification-banner" class="verification-banner" role="status" hidden>
   <span>邮箱尚未验证，请查收验证邮件。</span>
@@ -483,7 +490,7 @@
   </section>
 
 </main>
-<footer class="site-footer">EasyLife</footer>
+<footer class="site-footer">追逐星墨 · EasyLife<br><span>少一点忙乱，多一点从容</span></footer>
 
 <!-- ------------------------------------------------ 删除确认 -->
 <div id="confirm" class="modal" hidden>

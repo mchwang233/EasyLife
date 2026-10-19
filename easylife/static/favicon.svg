@@ -1,6 +1,6 @@
 <!-- xmlns 是 SVG 命名空间，不会加载外部资源。 -->
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 40 40" role="img" aria-label="EasyLife">
-  <rect width="40" height="40" rx="12" fill="#24664f"/>
-  <path d="M11 20l6 6 12-13" fill="none" stroke="#fff" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>
+  <rect width="40" height="40" rx="12" fill="#426557"/>
+  <path d="M11 20l6 6 12-13" fill="none" stroke="#fffefb" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>
   <circle cx="30" cy="30" r="2" fill="#b7ddad"/>
 </svg>
