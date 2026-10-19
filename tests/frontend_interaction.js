@@ -684,6 +684,10 @@ async function uiFlow() {
   byId.get("new-due").value = ""; byId.get("new-due").dispatch("change");
   doc.querySelector('[data-for="new-due"]').childNodes.filter(b => b.classList.contains("dt-clear"))[0].dispatch("click");
   check("清除截止时间时一起清掉重复和提前提醒", byId.get("new-repeat").value === "" && byId.get("new-early").value === "");
+  doc.querySelector('[data-for="new-due"]').childNodes.filter(b => b.classList.contains("dt-trigger"))[0].dispatch("click");
+  doc.querySelector("#dt-panel").querySelectorAll("button").filter(b => b.textContent === "完成")[0].dispatch("click");
+  check("没动默认 09:00 直接点完成也会设好截止时间", /T09:00$/.test(byId.get("new-due").value) && doc.querySelector("#dt-panel").hidden, byId.get("new-due").value);
+  byId.get("new-due").value = "";
   byId.get("new-details").value = "折叠后保留的草稿";
   byId.get("create-options-toggle").dispatch("click");
   check("收起不丢失已填内容", byId.get("new-details").value === "折叠后保留的草稿");

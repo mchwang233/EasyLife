@@ -443,9 +443,9 @@
       setPicked(picker, new Date(base.getFullYear(), base.getMonth(), base.getDate(), h, m), ".dt-wheel[data-unit='" + unit + "']");
     }
     var wheels = el("div", "dt-wheels");
-    wheels.appendChild(wheel("h", 24, 1, hours, function (h) { applyTime(h, minutes, "h"); }, "小时"));
+    wheels.appendChild(wheel("h", 24, 1, hours, function (h) { applyTime(h, minutes, "h"); }, "小时", !current));
     wheels.appendChild(el("span", "dt-colon", ":"));
-    wheels.appendChild(wheel("m", 60, 5, Math.min(55, Math.round(minutes / 5) * 5), function (m) { applyTime(hours, m, "m"); }, "分钟"));
+    wheels.appendChild(wheel("m", 60, 5, Math.min(55, Math.round(minutes / 5) * 5), function (m) { applyTime(hours, m, "m"); }, "分钟", !current));
     var band = el("span", "dt-band");
     band.setAttribute("aria-hidden", "true");
     wheels.appendChild(band);
@@ -456,7 +456,15 @@
     foot.appendChild(chip("清除", "btn ghost", function () {
       picker.input.value = ""; refreshPickers(); closePicker(true);
     }));
-    foot.appendChild(chip("完成", "btn primary", function () { closePicker(true); }));
+    foot.appendChild(chip("完成", "btn primary", function () {
+      // 没选过：按面板上显示的时间设定（今天这个时间已过就设为明天），不能点了「完成」还是空的。
+      if (!current) {
+        var pick = new Date(today.getFullYear(), today.getMonth(), today.getDate(), hours, minutes);
+        if (pick <= new Date()) { pick.setDate(pick.getDate() + 1); }
+        setPicked(picker, pick);
+      }
+      closePicker(true);
+    }));
     panel.appendChild(foot);
 
     // 面板挂到页面后再把滚轮定位到当前值（此前没有布局尺寸）。
@@ -468,7 +476,8 @@
   var WHEEL_ITEM = 36;
 
   /* 一列滚轮。只在用户真正滚动 / 点按 / 按键后才写回数值，打开面板不会凭空设定时间。 */
-  function wheel(unit, count, step, selected, apply, label) {
+  /* empty：输入框还没有值，此时点选当前显示的那一格也算选择。 */
+  function wheel(unit, count, step, selected, apply, label, empty) {
     var list = el("div", "dt-wheel");
     list.dataset.unit = unit;
     list.tabIndex = 0;
@@ -502,7 +511,7 @@
     function commit() {
       var position = Math.max(0, Math.min(values.length - 1, Math.round(list.scrollTop / WHEEL_ITEM)));
       mark(position);
-      if (armed && position !== index) { index = position; apply(values[position]); }
+      if (armed && (position !== index || empty)) { index = position; empty = false; apply(values[position]); }
     }
     ["wheel", "touchstart", "pointerdown"].forEach(function (type) {
       list.addEventListener(type, function () { armed = true; }, { passive: true });
