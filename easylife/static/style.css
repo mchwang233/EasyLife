@@ -2,17 +2,17 @@
  * 布局原则：一列为主、信息密度适中；任务一行一条，只显示有信息量的标记。 */
 :root {
   color-scheme: light;
-  --bg: #f5f6f2;
-  --card: #ffffff;
-  --surface: #eff3ee;
-  --text: #223c33;
-  --muted: #5b6e64;
-  --line: #e3e8e3;
+  --bg: #f5f3ee;
+  --card: #fffefb;
+  --surface: #edf2ec;
+  --text: #343d36;
+  --muted: #626b60;
+  --line: #e4e6dd;
   --input-line: #829489;
-  --primary: #24664f;
-  --primary-hover: #194f3c;
-  --on-primary: #ffffff;
-  --primary-soft: #e5f1e9;
+  --primary: #426557;
+  --primary-hover: #355344;
+  --on-primary: #fffefb;
+  --primary-soft: #edf2ec;
   --danger: #a6303e;
   --danger-bg: #fff0f0;
   --ok: #216244;
@@ -20,7 +20,7 @@
   --warn: #78500e;
   --warn-bg: #fff2d9;
   --focus: #2768b0;
-  --hover: rgb(36 102 79 / 5%);
+  --hover: rgb(66 101 87 / 5%);
   /* 优先级：高=红、中=琥珀、低=蓝、最低=灰；文字色与对应浅底均 ≥ 4.5:1。 */
   --p3: #b4232f; --p3-bg: #fdeced;
   --p2: #8a5300; --p2-bg: #fcf0d9;
