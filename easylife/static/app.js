@@ -135,7 +135,9 @@
     var toggle = $("#theme-toggle");
     if (toggle) {
       var names = { system: "跟随系统", light: "浅色", dark: "深色" };
-      setText(toggle, { system: "◐", light: "☀", dark: "☾" }[theme] + " " + names[theme]);
+      // 图标和名称分开放：手机上只显示图标，顶栏不会被挤到换行。
+      setText($("#theme-toggle-icon"), { system: "◐", light: "☀", dark: "☾" }[theme]);
+      setText($("#theme-toggle-name"), names[theme]);
       toggle.setAttribute("aria-label", "外观主题：" + names[theme] + "，点击切换");
     }
   }

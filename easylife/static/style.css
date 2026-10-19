@@ -142,9 +142,12 @@ a { color: var(--primary); }
 }
 .brand-link img { border-radius: 7px; }
 
+/* 顶栏各项宽度固定，空间不够时也不会把中文拆成两行。 */
+.brand-link, .workspace-nav, .topbar-actions > * { flex-shrink: 0; }
 .workspace-nav { display: flex; gap: 2px; }
 .nav-link {
   display: inline-flex; align-items: center; gap: 6px;
+  white-space: nowrap;
   min-height: 34px; padding: 0 12px;
   border: 0; border-radius: var(--radius-sm);
   background: transparent; color: var(--muted);
@@ -969,6 +972,9 @@ body.has-modal { overflow: hidden; }
   .site-header:has(#workspace-nav:not([hidden])) .brand-link span { display: none; }
   .workspace-nav .nav-link { padding: 0 10px; }
   .theme-select { max-width: 92px; }
+  /* 手机上主题按钮只留图标，完整名称仍在 aria-label 里。 */
+  .theme-toggle { padding: 0 12px; }
+  .theme-toggle .theme-name { display: none; }
 
   .wrap { padding: var(--space-4) var(--space-3) var(--space-6); }
   h1 { font-size: 1.3rem; }
@@ -1018,7 +1024,6 @@ body.has-modal { overflow: hidden; }
 }
 
 @media (max-width: 360px) {
-  .workspace-nav { display: none; }
   .detail-card .grid { grid-template-columns: 1fr; }
 }
 
