@@ -77,7 +77,7 @@ class ReminderModelTests(DbTestCase):
         self.assertEqual(sent, [todo["id"]])
         self.assertIn("任务提醒：任务", mails[0]["Subject"])
         self.assertNotIn("紧急", mails[0]["Subject"])
-        self.assertIn("时间：", mails[0].get_content())
+        self.assertIn("截止：", mails[0].get_content())
         self.assertEqual(self.row(todo["id"])["due_alert_sent"], 1)
         self.assertEqual(self.run_round(now=db.now_utc(7200)), ([], []))
 

@@ -281,7 +281,7 @@
     syncTimeOptions("d");
   }
 
-  /* 「提前提醒」「重复」只在设了提醒时间后出现；勾选「紧急」时显示说明。 */
+  /* 「提前提醒」「重复」只在设了截止时间后出现；勾选「紧急」时显示说明。 */
   function syncTimeOptions(prefix) {
     var options = $("#" + prefix + "-time-options");
     if (options) { options.hidden = !$("#" + prefix + "-due").value; }
@@ -1856,7 +1856,7 @@
     select.value = value;
   }
 
-  /* 表单里的提醒时间、提前提醒、重复、旗标、紧急、标签 -> 接口字段。 */
+  /* 表单里的截止时间、提前提醒、重复、旗标、紧急、标签 -> 接口字段。 */
   function timeFields(prefix) {
     var dueLocal = $("#" + prefix + "-due").value;
     var due = fromLocalInput(dueLocal);
@@ -2370,7 +2370,7 @@
         if (!response.ok) {
           return errorBody(response).then(function (info) {
             throw new ApiError(response.status, info.code,
-              info.message || "无法生成日历文件（请先设置截止时间或提醒时间）");
+              info.message || "无法生成日历文件（请先设置截止时间）");
           });
         }
         return response.text();

@@ -371,7 +371,7 @@ select {
   box-shadow: var(--shadow-lift);
   animation: toast-in .12s ease-out;
 }
-/* 右列（提醒时间）的面板向左展开，不超出卡片。 */
+/* 右列（截止时间）的面板向左展开，不超出卡片。 */
 .picker-grid .el-field:not(.span-all) + .el-field:not(.span-all) .dt-panel { left: auto; right: 0; }
 
 .dt-quick, .dt-presets { display: flex; flex-wrap: wrap; gap: 6px; }

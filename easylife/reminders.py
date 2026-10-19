@@ -100,7 +100,7 @@ def build_message(row, cfg, base_url="", kind="due"):
     msg["Message-ID"] = email.utils.make_msgid(domain="easylife")
     body = ["%s" % (row["title"] or "")]
     if due:
-        body.append("时间：%s" % recurrence.local_label(due))
+        body.append("截止：%s" % recurrence.local_label(due))
     elif remind:
         body.append("提醒：%s" % recurrence.local_label(remind))
     if row.get("details"):
@@ -109,7 +109,7 @@ def build_message(row, cfg, base_url="", kind="due"):
         body.append("任务链接：%s" % calendar_ics.task_link(row, base_url))
     if urgent:
         body.append("")
-        body.append("这是紧急任务：到时间后每 %d 分钟提醒一次，直到完成（最多 %d 次）。"
+        body.append("这是紧急任务：到截止时间后每 %d 分钟提醒一次，直到完成（最多 %d 次）。"
                     "打开任务，标记完成或点「停止提醒」即可停止。"
                     % (todos.URGENT_INTERVAL // 60, todos.URGENT_MAX))
     msg.set_content("\n".join(body))
