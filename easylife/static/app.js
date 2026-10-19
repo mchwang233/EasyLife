@@ -190,7 +190,6 @@
         button.dataset.value = value;
         button.addEventListener("click", function () {
           select.value = value;
-          ensureDueFor(select);
           refreshPickers();
         });
         holder.appendChild(button);
@@ -282,30 +281,12 @@
     syncTimeOptions("d");
   }
 
-  /* 「提前提醒」「重复」都要有截止时间：清除截止时间时一起清掉；勾选「紧急」时显示说明。 */
+  /* 「提前提醒」「重复」只在设了截止时间后出现；勾选「紧急」时显示说明。 */
   function syncTimeOptions(prefix) {
-    var due = $("#" + prefix + "-due");
-    if (due && !due.value) {
-      $("#" + prefix + "-early").value = "";
-      $("#" + prefix + "-repeat").value = "";
-    }
+    var options = $("#" + prefix + "-time-options");
+    if (options) { options.hidden = !$("#" + prefix + "-due").value; }
     var hint = $("#" + prefix + "-urgent-hint");
     if (hint) { hint.hidden = !$("#" + prefix + "-urgent").checked; }
-  }
-
-  /* 像 iPhone 一样：还没设截止时间就选「提前提醒」或「重复」时，自动设为今天下一个整点
-     （晚上 11 点以后设为明天 09:00），之后仍可再改。 */
-  function ensureDueFor(select) {
-    var match = /^(new|d)-(early|repeat)$/.exec(select.id);
-    if (!match || !select.value) { return; }
-    var due = $("#" + match[1] + "-due");
-    if (due.value) { return; }
-    var when = new Date();
-    if (when.getHours() >= 23) { when.setDate(when.getDate() + 1); when.setHours(9, 0, 0, 0); }
-    else { when.setHours(when.getHours() + 1, 0, 0, 0); }
-    due.value = formatLocal(when);
-    showToast("已把截止时间设为" + friendlyDate(when) + "，可以再改", "ok",
-      match[1] === "new" ? "#create-feedback" : "#detail-feedback");
   }
 
   function pickerPanel() {
