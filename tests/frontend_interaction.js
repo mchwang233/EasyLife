@@ -678,7 +678,12 @@ async function uiFlow() {
   check("首屏新建入口聚焦标题", doc.activeElement === byId.get("new-title"));
   byId.get("create-options-toggle").dispatch("click");
   check("展开保留可选字段", !byId.get("create-options").hidden && ["new-details", "new-priority", "new-due", "new-early", "new-repeat", "new-flagged", "new-urgent", "new-tags-entry"].every(id => byId.get(id).closest("#create-options")) && byId.get("create-options-toggle").getAttribute("aria-expanded") === "true");
-  check("提前提醒和重复在设置时间前隐藏", byId.get("new-time-options").hidden);
+  check("未设截止时间也显示提前提醒和重复", !byId.get("new-time-options").hidden && byId.get("new-due").value === "");
+  doc.querySelector('[data-for="new-repeat"]').childNodes.filter(b => b.dataset.value === "FREQ=DAILY")[0].dispatch("click");
+  check("先选重复会自动设好截止时间", byId.get("new-repeat").value === "FREQ=DAILY" && /^\d{4}-\d{2}-\d{2}T\d{2}:00$/.test(byId.get("new-due").value) && byId.get("toast").textContent.includes("截止时间"));
+  byId.get("new-due").value = ""; byId.get("new-due").dispatch("change");
+  doc.querySelector('[data-for="new-due"]').childNodes.filter(b => b.classList.contains("dt-clear"))[0].dispatch("click");
+  check("清除截止时间时一起清掉重复和提前提醒", byId.get("new-repeat").value === "" && byId.get("new-early").value === "");
   byId.get("new-details").value = "折叠后保留的草稿";
   byId.get("create-options-toggle").dispatch("click");
   check("收起不丢失已填内容", byId.get("new-details").value === "折叠后保留的草稿");
@@ -810,7 +815,7 @@ async function uiFlow() {
 
   locationStub.hash = "#/todos/21"; await settle(10);
   check("详情显示子任务和图片", byId.get("subtask-list").childNodes.length === 2 && byId.get("image-grid").childNodes.length === 1 && byId.get("subtask-count").textContent === "1/2" && !byId.get("subtasks").hidden);
-  check("详情回填旗标、紧急、重复和标签", byId.get("d-flagged").checked && byId.get("d-urgent").checked && byId.get("d-repeat").value === "FREQ=WEEKLY" && byId.get("d-tags-list").childNodes.length === 1 && !byId.get("d-time-options").hidden);
+  check("详情回填旗标、紧急、重复和标签", byId.get("d-flagged").checked && byId.get("d-urgent").checked && byId.get("d-repeat").value === "FREQ=WEEKLY" && byId.get("d-tags-list").childNodes.length === 1);
   byId.get("subtask-title").value = "找搬家公司"; byId.get("subtask-form").dispatch("submit"); await settle(8);
   check("添加子任务带上上级任务", requests.some(r => r.method === "POST" && r.url === "/api/todos" && r.body.parent_id === 21 && r.body.title === "找搬家公司") && byId.get("subtask-title").value === "");
   byId.get("image-grid").querySelector(".thumb").dispatch("click");
