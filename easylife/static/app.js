@@ -1777,6 +1777,8 @@
 
   function openDetail(id) {
     var hash = "#/todos/" + id;
+    // 从邮件或收藏的链接直接打开详情时，列表还没加载过；加载后 renderLists 会补上「所属列表」。
+    loadLists();
     return api("GET", "./api/todos/" + id).then(function (todo) {
       // 用户已切换到其他视图时，迟到的详情响应不能抢回页面与焦点。
       if (!state.user || location.hash !== hash) { return; }
@@ -1854,15 +1856,17 @@
     var button = $("#d-save");
     if (button.disabled) { return; }
     setBusy(button, true, "正在保存…");
-    api("PUT", "./api/todos/" + todo.id, {
+    var changes = {
       title: title,
       details: $("#d-details").value || null,
       status: $("#d-status").value,
       priority: Number($("#d-priority").value),
       due_at: fromLocalInput($("#d-due").value),
-      remind_at: fromLocalInput($("#d-remind").value),
-      list_id: Number($("#d-list").value) || null
-    }).then(function (updated) {
+      remind_at: fromLocalInput($("#d-remind").value)
+    };
+    // 列表还没加载时选择框是空的：这时不改所属列表，否则任务会被移回默认列表。
+    if (Number($("#d-list").value)) { changes.list_id = Number($("#d-list").value); }
+    api("PUT", "./api/todos/" + todo.id, changes).then(function (updated) {
       state.current = updated;
       renderDetail(updated);
       var warnings = updated.warnings && updated.warnings.length ? "（" + updated.warnings.join("；") + "）" : "";

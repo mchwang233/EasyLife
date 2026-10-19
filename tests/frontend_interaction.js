@@ -73,6 +73,7 @@ class El {
     this.attributes = {};
     this.listeners = {};
     this.dataset = {};
+    this.style = { setProperty: function () {}, removeProperty: function () {} };
     this.id = "";
     this.hidden = false;
     this.value = "";
@@ -117,6 +118,7 @@ class El {
   getAttribute(name) { return Object.prototype.hasOwnProperty.call(this.attributes, name) ? this.attributes[name] : null; }
   removeAttribute(name) { delete this.attributes[name]; }
 
+  get children() { return this.childNodes; }
   appendChild(child) { child.parentNode = this; this.childNodes.push(child); return child; }
   replaceChildren() { this.childNodes.forEach(function (child) { child.parentNode = null; }); this.childNodes = []; }
   remove() {
@@ -258,6 +260,8 @@ let listFailure = false;
 let deferList = false;
 let finishList = null;
 let createFailure = false;
+/* 列表接口默认 404（老版本服务器）；置为 true 后返回两个列表。 */
+let listsAvailable = false;
 
 function jsonResponse(status, payload) {
   payload = JSON.parse(JSON.stringify(payload)); // freeze the response at request completion
@@ -443,6 +447,13 @@ function fakeFetch(url, options) {
       csrf_token: "csrf-token-" + mailSessionId,
       calendar_feed_url: "http://127.0.0.1:8080/api/calendar.ics?token=secret"
     }));
+  }
+  if (route === "/api/lists" && method === "GET") {
+    if (!listsAvailable) { return Promise.resolve(notFound()); }
+    return Promise.resolve(jsonResponse(200, { items: [
+      { id: 1, slug: "tasks", name: "EasyLife", color: "#426557", sort_order: 0, is_default: true },
+      { id: 2, slug: "home", name: "家里", color: "#c0392b", sort_order: 1, is_default: false }
+    ] }));
   }
   if (route === "/api/todos" && method === "GET") {
     if (listFailure) { return Promise.reject(new Error("offline")); }
@@ -1166,6 +1177,8 @@ async function adminMailRaceFlow() {
     }));
     check("详情保存后提示成功", byId.get("toast").textContent.includes("已保存"),
       byId.get("toast").textContent);
+    const savedBody = requests.filter(r => r.method === "PUT" && r.url === "/api/todos/2").slice(-1)[0].body || {};
+    check("列表未加载时保存不改所属列表", !("list_id" in savedBody), JSON.stringify(savedBody));
 
     /* 8. 任务已在别处被删除（DELETE 返回 404）：同样要回到列表，不能停在死详情页 */
     deleteStatusOverride = 404;
@@ -1201,6 +1214,17 @@ async function adminMailRaceFlow() {
     finishDetail();
     await settle(6);
     check("迟到的详情404响应不覆盖重置密码页", view("reset") && currentHash === "#/reset?token=reset-link");
+
+    /* 9b. 从提醒邮件的链接直接打开详情：要加载列表并显示「所属列表」 */
+    listsAvailable = true;
+    locationStub.hash = "#/forgot-password";
+    await settle(4);
+    const linked = todos.filter(todo => todo.status !== "archived")[0];
+    locationStub.hash = "#/todos/" + linked.id;
+    await settle(10);
+    const listFields = Array.prototype.filter.call(doc.querySelectorAll(".list-field"), node => node.closest ? node.closest("#view-detail") : true);
+    check("邮件链接打开详情后显示所属列表", view("detail") && listFields.length > 0 && listFields.every(node => node.hidden === false) && byId.get("d-list").value === "1",
+      "value=" + byId.get("d-list").value + " fields=" + listFields.map(node => node.hidden).join(","));
 
     /* 10. 部署在 /todos/ 下也要能用：所有请求都必须是相对路径，不能以 "/" 开头 */
     check("所有 API 请求都使用相对路径", absoluteRequests.length === 0, absoluteRequests.join(", "));
