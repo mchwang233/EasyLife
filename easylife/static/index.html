@@ -1,0 +1,501 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="referrer" content="no-referrer">
+<title>EasyLife 任务与提醒</title>
+<link rel="icon" type="image/svg+xml" href="./static/favicon.svg">
+<link rel="apple-touch-icon" href="./static/apple-touch-icon.png">
+<meta name="apple-mobile-web-app-title" content="EasyLife">
+<meta name="theme-color" content="#24664f">
+<link rel="stylesheet" href="./static/style.css">
+</head>
+<body>
+<a class="skip-link" href="#app">跳到主要内容</a>
+<header class="site-header">
+  <a class="brand-link" href="#/todos" aria-label="EasyLife 首页">
+    <img src="./static/favicon.svg" width="28" height="28" alt="">
+    <span>EasyLife</span>
+  </a>
+  <nav id="workspace-nav" class="workspace-nav" aria-label="主要导航" hidden>
+    <a id="nav-todos" class="nav-link" href="#/todos" aria-current="page">任务</a>
+    <button type="button" id="nav-settings" class="nav-link">设置</button>
+  </nav>
+  <nav class="topbar-actions" aria-label="账户与外观">
+    <label class="sr-only" for="theme-select">外观主题</label>
+    <select id="theme-select" class="theme-select" aria-label="外观主题">
+      <option value="system">跟随系统</option>
+      <option value="light">浅色</option>
+      <option value="dark">深色</option>
+    </select>
+    <button type="button" id="theme-toggle" class="btn ghost theme-toggle" hidden>主题</button>
+    <div id="account-nav" class="account-nav" hidden>
+      <button type="button" id="btn-account" class="btn ghost account-toggle" aria-expanded="false" aria-controls="account-panel">账户<span aria-hidden="true" class="caret">▾</span></button>
+      <div id="account-panel" class="account-panel" hidden>
+        <span class="eyebrow">当前账户</span>
+        <span id="me-email" class="account-name"></span>
+        <button type="button" id="btn-settings" class="btn ghost block" aria-expanded="false" aria-controls="settings">设置与日历</button>
+        <button type="button" id="btn-logout" class="btn ghost block" aria-label="退出登录">登出</button>
+      </div>
+    </div>
+  </nav>
+</header>
+<div id="verification-banner" class="verification-banner" role="status" hidden>
+  <span>邮箱尚未验证，请查收验证邮件。</span>
+  <button type="button" id="banner-resend" class="btn el-tap" data-resend aria-label="重新发送验证邮件">重新发送</button>
+</div>
+
+<div id="page-feedback" class="page-feedback"><div id="toast" class="toast" role="status" aria-live="polite" hidden></div></div>
+
+<main id="app" class="wrap" tabindex="-1">
+
+  <noscript>
+    <section class="card">
+      <h1>EasyLife</h1>
+      <p>本应用需要启用 JavaScript 才能使用。</p>
+    </section>
+  </noscript>
+
+  <!-- 邮件链接沿用后端的 #/verify?token= 与 #/reset?token= 路由。 -->
+  <section id="view-auth" class="view auth-view" aria-labelledby="auth-title" hidden>
+    <div class="card auth-card">
+      <header class="brand">
+        <span class="eyebrow">少一点忙乱，多一点从容</span>
+        <h1 id="auth-title" tabindex="-1">欢迎回到 EasyLife</h1>
+        <p class="muted">记下心里的事，留出生活的空间。</p>
+      </header>
+      <div class="tabs" role="tablist" aria-label="登录或注册">
+        <button type="button" id="tab-login" class="tab is-active" role="tab" aria-controls="auth-panel" aria-selected="true" tabindex="0">登录</button>
+        <button type="button" id="tab-register" class="tab" role="tab" aria-controls="auth-panel" aria-selected="false" tabindex="-1">注册</button>
+      </div>
+      <div id="auth-panel" role="tabpanel" aria-labelledby="tab-login">
+        <form id="auth-form" novalidate>
+          <label for="auth-email">邮箱</label>
+          <input id="auth-email" name="email" type="email" inputmode="email" autocomplete="username" maxlength="254" placeholder="you@example.com" aria-describedby="auth-error" required>
+          <label for="auth-password">密码</label>
+          <div class="password-field">
+            <input id="auth-password" name="password" type="password" autocomplete="current-password" minlength="8" maxlength="128" aria-describedby="auth-hint auth-error" required>
+            <button type="button" class="password-toggle el-tap" data-password="auth-password" aria-controls="auth-password" aria-label="显示密码" aria-pressed="false">显示</button>
+          </div>
+          <p id="auth-hint" class="muted small">密码为 8–128 个字符。</p>
+          <p id="auth-error" class="form-message error" role="alert" hidden></p>
+          <button type="submit" id="auth-submit" class="btn primary block">登录</button>
+        </form>
+        <button type="button" id="auth-resend" class="btn ghost block" data-resend hidden>重新发送验证邮件</button>
+        <button type="button" id="auth-forgot" class="btn text-button block">忘记密码？</button>
+      </div>
+      <p class="auth-footnote muted small">任务、提醒和日历，在这里井井有条。</p>
+    </div>
+  </section>
+
+  <section id="view-check-email" class="view auth-view" hidden>
+    <div class="card auth-card">
+      <div class="mail-symbol" aria-hidden="true">✉</div>
+      <h1 tabindex="-1">请查收验证邮件</h1>
+      <p class="muted">注册成功。请打开邮箱 <strong id="check-email-address"></strong> 中的验证链接。</p>
+      <p id="check-email-message" class="form-message" role="status"></p>
+      <p class="muted small">验证链接 24 小时内有效。如果没有收到，请检查垃圾邮件，或稍后重新发送。</p>
+      <button type="button" id="check-email-resend" class="btn primary block" data-resend>重新发送验证邮件</button>
+      <a id="check-email-continue" href="#/login" class="btn ghost block">返回登录</a>
+    </div>
+  </section>
+
+  <section id="view-verify" class="view auth-view" aria-labelledby="verify-title" hidden>
+    <div id="verify-panel" class="card auth-card">
+      <div id="verify-symbol" class="mail-symbol" aria-hidden="true">…</div>
+      <h1 id="verify-title" tabindex="-1">正在验证邮箱</h1>
+      <p id="verify-message" class="form-message" role="status">正在确认你的邮箱，请稍候…</p>
+      <button type="button" id="verify-retry" class="btn primary block" hidden>重试验证</button>
+      <a id="verify-continue" href="#/login" class="btn primary block" hidden>返回登录</a>
+      <a id="verify-resend-link" href="#/login" class="btn ghost block" hidden>返回登录并重新发送验证邮件</a>
+    </div>
+  </section>
+
+  <section id="view-forgot" class="view auth-view" hidden>
+    <div class="card auth-card">
+      <span class="eyebrow">找回你的日常</span>
+      <h1 tabindex="-1">忘记密码？</h1>
+      <p class="muted">输入注册邮箱，我们会发送重置密码的链接。</p>
+      <form id="forgot-form" novalidate>
+        <label for="recovery-email">邮箱</label>
+        <input id="recovery-email" name="email" type="email" inputmode="email" autocomplete="email" maxlength="254" placeholder="you@example.com" aria-describedby="forgot-message" required>
+        <p id="forgot-message" class="form-message" role="status" hidden></p>
+        <button type="submit" id="forgot-submit" class="btn primary block">发送重置链接</button>
+      </form>
+      <a href="#/login" class="btn ghost block">返回登录</a>
+    </div>
+  </section>
+
+  <section id="view-reset" class="view auth-view" hidden>
+    <div class="card auth-card">
+      <span class="eyebrow">重新出发</span>
+      <h1 tabindex="-1">重置密码</h1>
+      <p class="muted">设置新密码，继续安排你的生活。</p>
+      <form id="reset-form" novalidate>
+        <label for="recovery-password">新密码</label>
+        <div class="password-field">
+          <input id="recovery-password" name="password" type="password" autocomplete="new-password" minlength="8" maxlength="128" aria-describedby="password-requirements reset-message" required>
+          <button type="button" class="password-toggle el-tap" data-password="recovery-password" aria-controls="recovery-password" aria-label="显示新密码" aria-pressed="false">显示</button>
+        </div>
+        <p id="password-requirements" class="muted small">需要 8–128 个字符；建议混合字母、数字和符号，避免使用常见密码。重置后所有设备都需要重新登录。</p>
+        <label for="recovery-confirm">确认新密码</label>
+        <div class="password-field">
+          <input id="recovery-confirm" name="confirm-password" type="password" autocomplete="new-password" minlength="8" maxlength="128" aria-describedby="reset-message" required>
+          <button type="button" class="password-toggle el-tap" data-password="recovery-confirm" aria-controls="recovery-confirm" aria-label="显示确认密码" aria-pressed="false">显示</button>
+        </div>
+        <p id="reset-message" class="form-message" role="alert" hidden></p>
+        <button type="submit" id="reset-submit" class="btn primary block">重置密码</button>
+      </form>
+      <a id="reset-request-link" href="#/forgot-password" class="btn ghost block" hidden>重新获取重置链接</a>
+      <a href="#/login" class="btn ghost block">返回登录</a>
+    </div>
+  </section>
+
+  <!-- ------------------------------------------------ 任务列表 -->
+  <section id="view-list" class="view" aria-labelledby="list-heading" hidden>
+    <header class="page-heading">
+      <div><span id="today-date" class="date-stamp"></span><h1 id="list-heading" tabindex="-1">我的任务</h1></div>
+      <button type="button" id="btn-new" class="btn ghost new-button" aria-controls="create-form">＋ 新建任务</button>
+    </header>
+
+    <div class="workspace-grid">
+    <section class="card composer" aria-labelledby="composer-heading">
+      <h2 id="composer-heading" class="sr-only">新建任务</h2>
+      <form id="create-form">
+        <label for="new-title" class="sr-only">标题</label>
+        <div class="quick-row">
+          <input id="new-title" type="text" maxlength="200" autocomplete="off" placeholder="添加任务，按回车保存" required>
+          <button type="submit" id="create-submit" class="btn primary">添加</button>
+        </div>
+        <button type="button" id="create-options-toggle" class="disclosure" aria-expanded="false" aria-controls="create-options">更多选项 ＋</button>
+        <div id="create-options" class="create-options" hidden>
+        <div class="md-label">
+          <label for="new-details">详情</label>
+          <div class="md-tabs" role="group" aria-label="详情显示方式">
+            <button type="button" id="new-details-edit" class="md-tab" aria-pressed="true">编辑</button>
+            <button type="button" id="new-details-view" class="md-tab" aria-pressed="false">预览</button>
+          </div>
+        </div>
+        <div id="new-details-toolbar" class="md-toolbar" data-for="new-details"></div>
+        <textarea id="new-details" rows="2" maxlength="20000"
+                  placeholder="可留空；支持 Markdown，如 - [ ] 待办清单"></textarea>
+        <div id="new-details-preview" class="md md-preview" title="点击编辑" hidden></div>
+
+        <div class="grid picker-grid">
+          <div class="el-field span-all list-field" hidden>
+            <label for="new-list">列表</label>
+            <select id="new-list"></select>
+            <div class="seg list-seg" data-list-for="new-list"></div>
+          </div>
+          <div class="el-field span-all">
+            <label for="new-priority">优先级</label>
+            <select id="new-priority">
+              <option value="3">高</option>
+              <option value="2" selected>中</option>
+              <option value="1">低</option>
+              <option value="0">最低</option>
+            </select>
+            <div class="seg" data-for="new-priority"></div>
+          </div>
+          <div class="el-field">
+            <label for="new-remind">提醒时间</label>
+            <input id="new-remind" type="datetime-local">
+            <div class="dt" data-for="new-remind"></div>
+          </div>
+          <div class="el-field">
+            <label for="new-due">截止时间</label>
+            <input id="new-due" type="datetime-local">
+            <div class="dt" data-for="new-due"></div>
+          </div>
+        </div>
+
+        </div>
+        <div id="create-feedback" class="feedback-slot"></div>
+      </form>
+    </section>
+
+    <section class="card tasks-card" aria-label="任务清单">
+      <div class="list-head">
+        <div class="list-bar">
+          <div id="list-tabs" class="list-tabs" role="group" aria-label="任务列表"></div>
+          <button type="button" id="btn-list-edit" class="list-tool" hidden>编辑列表</button>
+          <button type="button" id="btn-list-new" class="list-tool" aria-controls="list-form">＋ 新列表</button>
+        </div>
+        <form id="list-form" class="list-form" hidden>
+          <label for="list-name" id="list-form-title" class="small">新建列表</label>
+          <input id="list-name" type="text" maxlength="50" autocomplete="off" placeholder="例如：工作、家务、购物" required>
+          <div id="list-colors" class="list-colors" role="radiogroup" aria-label="列表颜色"></div>
+          <div class="list-form-actions">
+            <button type="submit" id="list-save" class="btn primary">保存</button>
+            <button type="button" id="list-cancel" class="btn ghost">取消</button>
+            <button type="button" id="list-delete" class="btn ghost danger" hidden>删除列表</button>
+          </div>
+        </form>
+        <div id="filters" class="filters" role="group" aria-label="筛选任务">
+          <button type="button" class="chip is-active" data-status="all" aria-pressed="true">全部</button>
+          <button type="button" class="chip" data-status="today" aria-pressed="false">今天</button>
+          <button type="button" class="chip" data-status="upcoming" aria-pressed="false">即将到期</button>
+          <button type="button" class="chip" data-status="open" aria-pressed="false">待办</button>
+          <button type="button" class="chip" data-status="doing" aria-pressed="false">进行中</button>
+          <button type="button" class="chip" data-status="done" aria-pressed="false">已完成</button>
+          <button type="button" class="chip" data-status="archived" aria-pressed="false">已归档</button>
+        </div>
+      </div>
+
+      <p id="filter-hint" class="muted small">所有未归档任务，按优先级与截止时间排列。</p>
+      <p id="list-loading" class="loading-state" role="status" hidden>正在加载任务…</p>
+      <div id="list-error" class="error-state" hidden>
+        <p id="list-error-message" role="alert"></p>
+        <button type="button" id="list-retry" class="btn">重新加载</button>
+      </div>
+      <div id="list-feedback" class="feedback-slot"></div>
+      <div id="list-empty" class="empty-state" role="status" hidden>
+        <div class="empty-art" aria-hidden="true"><span>✓</span></div>
+        <h3 id="empty-title">给今天留一点期待</h3>
+        <p id="empty-message" class="muted">还没有任务。从一件小事开始吧。</p>
+        <button type="button" id="empty-all" class="btn ghost" hidden>查看全部任务</button>
+        <button type="button" id="empty-create" class="btn">添加第一件事</button>
+      </div>
+      <ul id="todo-list" class="todo-list" aria-label="任务列表"></ul>
+      <p id="list-count" class="muted small list-count" role="status"></p>
+    </section>
+    </div>
+  </section>
+
+  <section id="view-settings" class="view settings-view" aria-labelledby="settings-heading" hidden>
+    <header class="page-heading">
+      <div><h1 id="settings-heading" tabindex="-1">设置</h1></div>
+      <a class="btn ghost" href="#/todos">← 返回任务</a>
+    </header>
+    <div class="settings-grid">
+      <nav id="settings-sections" class="settings-sections" aria-label="设置分类">
+        <a id="nav-calendar-settings" class="nav-link is-active" href="#/settings" aria-current="page">日历订阅</a>
+        <!-- 管理员邮件设置入口：仅 state.user.is_admin === true 时由 app.js 显示。 -->
+        <a id="nav-mail-settings" class="nav-link" href="#/settings/mail" hidden>邮件发送 <span class="badge">管理员</span></a>
+      </nav>
+      <div class="settings-cards">
+    <section id="settings" class="card settings-card" aria-label="日历订阅设置">
+      <h2>日历订阅 <span class="badge">ICS</span></h2>
+      <p class="muted small">把下面的订阅地址添加到 Google 日历 / Apple 日历，即可自动同步未完成任务（只读，请勿分享给他人）。</p>
+      <label for="feed-url">专属订阅地址</label>
+      <div class="row feed-row el-row">
+        <input id="feed-url" type="text" class="grow" readonly aria-label="日历订阅地址">
+        <button type="button" id="btn-copy-feed" class="btn">复制</button>
+        <button type="button" id="btn-reset-feed" class="btn danger">重置订阅地址</button>
+      </div>
+      <p class="muted small settings-warning">重置后旧地址立即失效，需要在日历客户端重新添加新地址。</p>
+      <div id="settings-feedback" class="feedback-slot"></div>
+      <p class="muted small">当前账号：<span id="set-email"></span></p>
+    </section>
+
+    <!-- CalDAV 同步：专用密码只在生成时显示一次，不写入网址或浏览器存储。 -->
+    <section id="dav-settings" class="card settings-card" aria-labelledby="dav-heading">
+      <h2 id="dav-heading">提醒事项同步 <span class="badge">CalDAV</span></h2>
+      <p class="muted small">在 iPhone / Mac 的「提醒事项」里添加一个 CalDAV 账户，就会多出一个「EasyLife」列表，双向同步：手机上新建、打勾、修改、删除，这里都会跟着变，反之亦然。</p>
+      <label for="dav-url">服务器</label>
+      <div class="row feed-row el-row">
+        <input id="dav-url" type="text" class="grow" readonly>
+        <button type="button" id="btn-copy-dav-url" class="btn">复制</button>
+      </div>
+      <label for="dav-user">用户名</label>
+      <div class="row feed-row el-row">
+        <input id="dav-user" type="text" class="grow" readonly>
+        <button type="button" id="btn-copy-dav-user" class="btn">复制</button>
+      </div>
+      <div id="dav-password-box" hidden>
+        <label for="dav-password">密码（只显示这一次，请现在填到手机里）</label>
+        <div class="row feed-row el-row">
+          <input id="dav-password" type="text" class="grow" readonly autocomplete="off">
+          <button type="button" id="btn-copy-dav-password" class="btn">复制</button>
+        </div>
+      </div>
+      <p id="dav-state" class="muted small" role="status"></p>
+      <div class="row el-row">
+        <button type="button" id="btn-dav-generate" class="btn primary">生成同步密码</button>
+        <button type="button" id="btn-dav-revoke" class="btn danger" hidden>停用同步</button>
+      </div>
+      <ol class="muted small dav-steps">
+        <li>iPhone 打开「设置 →（App →）提醒事项 → 账户 → 添加账户 → 其他 → 添加 CalDAV 账户」（Mac：系统设置 → 互联网账户 → 添加其他账户 → CalDAV 账户，类型选「手动」）。</li>
+        <li>服务器填上面的地址，用户名填你的邮箱，密码填生成的同步密码（不是登录密码）。</li>
+        <li>保存后打开「提醒事项」，就能看到「EasyLife」列表。</li>
+      </ol>
+      <p class="muted small settings-warning">重新生成或停用后，旧密码立即失效，已添加的设备需要更新密码。只同步一个列表；归档的任务不会出现在手机上。</p>
+      <div id="dav-feedback" class="feedback-slot"></div>
+    </section>
+
+    <!-- 管理员邮件设置：仅 state.user.is_admin === true 时显示；普通用户不渲染、不请求。
+         测试邮件只使用已保存的配置；授权码永不回填，也不写入网址或浏览器存储。 -->
+    <section id="mail-settings" class="card settings-card mail-card" hidden aria-labelledby="mail-settings-heading">
+      <span class="eyebrow">管理员 · 全站邮件</span>
+      <h2 id="mail-settings-heading" tabindex="-1">邮件发送（SMTP）</h2>
+      <p class="muted small">这里保存的配置用于全站验证邮件、找回密码邮件和任务提醒。测试邮件只使用<strong>已保存</strong>的配置；未保存的修改不会生效，也不会被测试邮件使用。</p>
+      <dl id="mail-meta" class="mail-meta">
+        <div><dt>当前配置来源</dt><dd id="mail-source">—</dd></div>
+        <div><dt>授权码来源</dt><dd id="mail-password-source">—</dd></div>
+        <div><dt>授权码状态</dt><dd id="mail-password-state">—</dd></div>
+        <div><dt>最近保存</dt><dd id="mail-updated">—</dd></div>
+      </dl>
+      <p id="mail-status" class="form-message mail-status" role="status" data-state="idle" hidden><span id="mail-draft-status"></span><span id="mail-result" data-state="idle"></span></p>
+      <form id="mail-form" class="mail-form" novalidate>
+        <div class="check-row">
+          <input id="mail-enabled" type="checkbox" class="mail-check">
+          <label for="mail-enabled" class="check-label">启用全站邮件（SMTP）</label>
+        </div>
+        <p class="muted small">取消勾选并保存会停用全站发信（邮件只写服务器日志）；重新勾选并保存后，按下方字段、服务器环境变量与内置默认值依次解析。</p>
+        <div class="grid">
+          <div class="el-field">
+            <label for="mail-host">SMTP 主机</label>
+            <input id="mail-host" type="text" maxlength="253" autocomplete="off" placeholder="例如 smtp.qq.com">
+          </div>
+          <div class="el-field">
+            <label for="mail-port">端口</label>
+            <input id="mail-port" type="text" inputmode="numeric" maxlength="5" autocomplete="off" placeholder="465（SSL）或 587（STARTTLS）">
+          </div>
+          <div class="el-field">
+            <label for="mail-user">SMTP 账号</label>
+            <input id="mail-user" type="text" maxlength="254" autocomplete="off" placeholder="通常是完整邮箱地址">
+          </div>
+          <div class="el-field">
+            <label for="mail-from">发件人</label>
+            <input id="mail-from" type="text" maxlength="320" autocomplete="off" placeholder="EasyLife &lt;you@example.com&gt;">
+          </div>
+        </div>
+        <div class="el-stack">
+          <label for="mail-password">授权码 / SMTP 密码</label>
+          <input id="mail-password" type="password" maxlength="512" autocomplete="new-password" placeholder="留空 = 保留已保存的授权码">
+          <p class="muted small el-subtle">授权码由邮箱服务商后台生成，不是邮箱登录密码。它不会回显，也不会写入网址或浏览器存储；保存成功后此输入框会被清空，离开设置页时同样清空。</p>
+        </div>
+        <div class="check-row">
+          <input id="mail-clear-password" type="checkbox" class="mail-check">
+          <label for="mail-clear-password" class="check-label">清除已保存的授权码</label>
+        </div>
+        <p class="muted small">勾选上一项并保存会删除已保存的授权码（回退到服务器环境变量，若也没有则不使用密码）；不勾选且留空则继续保留现有授权码。主机、账号或发件人留空保存 = 删除对应保存值并回退服务器环境变量 / 默认值。</p>
+        <label for="mail-test-to">测试收件地址</label>
+        <input id="mail-test-to" type="email" maxlength="254" autocomplete="off" placeholder="留空则发送给当前管理员邮箱">
+        <p class="muted small">服务商示例（点击只填入主机与端口，不会自动保存，也不会覆盖已保存的配置）：</p>
+        <div class="row mail-presets el-row">
+          <button type="button" id="mail-preset-qq" class="btn">QQ 邮箱 · smtp.qq.com:465</button>
+          <button type="button" id="mail-preset-exmail" class="btn">腾讯企业邮 · smtp.exmail.qq.com:465</button>
+        </div>
+        <div class="row mail-actions el-row el-divider">
+          <button type="submit" id="mail-save" class="btn primary">保存设置</button>
+          <button type="button" id="mail-test" class="btn">发送测试邮件</button>
+          <button type="button" id="mail-reload" class="btn ghost">放弃修改并重新读取</button>
+        </div>
+      </form>
+      <div id="mail-feedback" class="feedback-slot"></div>
+    </section>
+      </div>
+    </div>
+  </section>
+
+  <!-- ------------------------------------------------ 任务详情 / 编辑 -->
+  <section id="view-detail" class="view" aria-labelledby="detail-heading" hidden>
+    <header class="topbar">
+      <button type="button" id="btn-back" class="btn ghost">← 返回列表</button>
+      <button type="button" id="btn-detail-delete" class="btn danger">删除任务</button>
+    </header>
+
+    <div class="detail-grid">
+    <section class="card detail-card">
+      <h1 id="detail-heading" class="sr-only" tabindex="-1">任务详情</h1>
+      <form id="detail-form">
+        <label for="d-title" class="sr-only">标题</label>
+        <input id="d-title" class="title-input" type="text" maxlength="200" required>
+
+        <div class="md-label">
+          <label for="d-details">详情</label>
+          <div class="md-tabs" role="group" aria-label="详情显示方式">
+            <button type="button" id="d-details-edit" class="md-tab" aria-pressed="true">编辑</button>
+            <button type="button" id="d-details-view" class="md-tab" aria-pressed="false">预览</button>
+          </div>
+        </div>
+        <div id="d-details-toolbar" class="md-toolbar" data-for="d-details"></div>
+        <textarea id="d-details" rows="4" maxlength="20000" placeholder="补充说明、链接或清单，支持 Markdown：**粗体**、- 列表、- [ ] 待办、`代码`"></textarea>
+        <div id="d-details-preview" class="md md-preview" title="点击编辑" hidden></div>
+
+        <div class="grid picker-grid">
+          <div class="el-field span-all">
+            <label for="d-status">状态</label>
+            <select id="d-status">
+              <option value="open">待办</option>
+              <option value="doing">进行中</option>
+              <option value="done">已完成</option>
+              <option value="archived">已归档</option>
+            </select>
+            <div class="seg" data-for="d-status"></div>
+          </div>
+          <div class="el-field span-all list-field" hidden>
+            <label for="d-list">列表</label>
+            <select id="d-list"></select>
+            <div class="seg list-seg" data-list-for="d-list"></div>
+          </div>
+          <div class="el-field span-all">
+            <label for="d-priority">优先级</label>
+            <select id="d-priority">
+              <option value="3">高</option>
+              <option value="2">中</option>
+              <option value="1">低</option>
+              <option value="0">最低</option>
+            </select>
+            <div class="seg" data-for="d-priority"></div>
+          </div>
+          <div class="el-field">
+            <label for="d-remind">提醒时间</label>
+            <input id="d-remind" type="datetime-local">
+            <div class="dt" data-for="d-remind"></div>
+          </div>
+          <div class="el-field">
+            <label for="d-due">截止时间</label>
+            <input id="d-due" type="datetime-local">
+            <div class="dt" data-for="d-due"></div>
+          </div>
+        </div>
+
+        <p id="d-meta" class="muted small"></p>
+
+        <button type="submit" id="d-save" class="btn primary detail-save">保存修改</button>
+        <div id="detail-feedback" class="feedback-slot"></div>
+        <div class="row actions calendar-actions el-row el-divider">
+          <button type="button" id="btn-download-ics" class="btn">下载到日历(.ics)</button>
+          <a id="link-google" class="btn link" href="#" target="_blank"
+             rel="noopener noreferrer">添加到 Google 日历</a>
+        </div>
+      </form>
+    </section>
+
+    <section class="card notes-card">
+      <h2>进展笔记</h2>
+      <ol id="note-list" class="timeline"></ol>
+      <p id="note-empty" class="muted empty" role="status" hidden>还没有笔记，写下第一条进展吧。</p>
+
+      <form id="note-form">
+        <label for="note-content" class="sr-only">新增笔记</label>
+        <div class="md-toolbar" data-for="note-content"></div>
+        <textarea id="note-content" rows="3" maxlength="10000" required
+                  placeholder="记录进展、阻塞或补充说明（支持 Markdown）"></textarea>
+        <button type="submit" id="note-submit" class="btn primary">添加笔记</button>
+        <div id="note-feedback" class="feedback-slot"></div>
+      </form>
+    </section>
+    </div>
+  </section>
+
+</main>
+<footer class="site-footer">EasyLife</footer>
+
+<!-- ------------------------------------------------ 删除确认 -->
+<div id="confirm" class="modal" hidden>
+  <div class="modal-box" role="dialog" aria-modal="true" aria-labelledby="confirm-text">
+    <p id="confirm-text" class="confirm-text"></p>
+    <div class="row end el-row">
+      <button type="button" id="confirm-cancel" class="btn ghost">取消</button>
+      <button type="button" id="confirm-ok" class="btn danger">确认</button>
+    </div>
+  </div>
+</div>
+
+<script src="./static/app.js" defer></script>
+</body>
+</html>

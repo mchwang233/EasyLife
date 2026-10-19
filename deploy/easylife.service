@@ -1,0 +1,73 @@
+# EasyLife systemd 单元  (由 deploy/deploy.sh 幂等安装到 /etc/systemd/system/easylife.service)
+#
+# 设计要点（DESIGN.md §8）：
+#   * 以专用非特权系统用户 easylife 运行，绝不使用 root；
+#   * 只监听回环地址 127.0.0.1:8086，公网访问一律经由 nginx 反向代理（TLS 在 nginx 终止）；
+#     默认路径模式下由 mch.wang 现有站点的 location /todos/ 转发过来（deploy/nginx-easylife-location.conf）；
+#     端口被占用时 deploy.sh --port <端口> 会把 EASYLIFE_PORT 写进环境文件（覆盖下面的默认值）；
+#   * 配置全部来自 /etc/easylife/easylife.env（EnvironmentFile），命令行不接受任何参数覆盖；
+#   * 数据（SQLite）放在 /var/lib/easylife，代码目录 /opt/easylife 保持只读，升级只换代码不动数据。
+#   * 网页端保存的邮件设置（site_settings）与管理员名单（EASYLIFE_ADMIN_USER_IDS，见环境文件）
+#     都不需要写 /etc：设置行落在 /var/lib/easylife 的 SQLite 里，服务仍以非 root 运行，
+#     UMask=0077 保证数据库文件及其 WAL/SHM 只有服务用户可读写（ReadWritePaths 保持不变）。
+#
+# 注意：systemd 中 EnvironmentFile= 的值会**覆盖** Environment= 的同名值，
+#       因此请勿在 /etc/easylife/easylife.env 里把 EASYLIFE_HOST 改成非回环地址
+#       （下面的 ExecStartPre 会做兜底校验并拒绝启动）。
+
+[Unit]
+Description=EasyLife 任务与提醒服务 (todo & e-mail reminders)
+Documentation=file:/opt/easylife/docs/DEPLOY.md
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=easylife
+Group=easylife
+WorkingDirectory=/opt/easylife
+EnvironmentFile=/etc/easylife/easylife.env
+
+# 默认值（环境文件里未定义时生效；已被环境文件覆盖时以环境文件为准）
+Environment=EASYLIFE_HOST=127.0.0.1
+Environment=EASYLIFE_PORT=8086
+Environment=PYTHONUNBUFFERED=1
+Environment=PYTHONDONTWRITEBYTECODE=1
+
+# 兜底：只允许绑定回环地址，否则拒绝启动（"$$" 在 systemd 中表示字面量 "$"）
+ExecStartPre=/bin/sh -c 'test "$$EASYLIFE_HOST" = "127.0.0.1"'
+
+# 入口：模块方式启动，因此 /opt/easylife/easylife/ 必须是一个完整的 Python 包
+ExecStart=/usr/bin/python3 -m easylife.app
+
+Restart=on-failure
+RestartSec=3
+KillSignal=SIGTERM
+TimeoutStopSec=15
+UMask=0077
+
+# ---------------- 加固 (hardening) ----------------
+NoNewPrivileges=true
+PrivateTmp=true
+PrivateDevices=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/var/lib/easylife
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectKernelLogs=true
+ProtectControlGroups=true
+ProtectClock=true
+ProtectHostname=true
+RestrictNamespaces=true
+RestrictRealtime=true
+RestrictSUIDSGID=true
+LockPersonality=true
+RemoveIPC=true
+CapabilityBoundingSet=
+AmbientCapabilities=
+RestrictAddressFamilies=AF_INET AF_INET6 AF_UNIX
+SystemCallArchitectures=native
+
+[Install]
+WantedBy=multi-user.target

@@ -1,0 +1,32 @@
+# Python
+__pycache__/
+*.py[cod]
+
+# 本地数据库
+*.db
+*.db-wal
+*.db-shm
+*.sqlite
+*.sqlite3
+
+# 真实配置与凭据（*.env.example 模板保留）
+*.env
+!*.env.example
+*.pem
+*.key
+id_rsa*
+id_ed25519*
+
+# 日志与备份
+*.log
+*.bak
+*.bak-*
+
+# 浏览器测试的截图与记录
+docs/verification/
+
+# 编辑器与系统文件
+.DS_Store
+.idea/
+.vscode/
+*.swp
