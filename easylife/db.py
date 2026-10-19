@@ -131,6 +131,43 @@ MIGRATIONS = [
                                 "INTEGER REFERENCES lists(id) ON DELETE SET NULL"),
         "CREATE INDEX IF NOT EXISTS idx_todos_list ON todos(user_id, list_id)",
     ],
+    # v8: iPhone-style reminders (an alert at the due time, remind_at is the optional
+    # earlier alert), repeating / urgent / flagged tasks, subtasks, tags and images.
+    [
+        lambda conn: add_column(conn, "todos", "due_alert_sent",
+                                "INTEGER NOT NULL DEFAULT 0 CHECK (due_alert_sent IN (0,1))"),
+        lambda conn: add_column(conn, "todos", "repeat", "TEXT"),
+        lambda conn: add_column(conn, "todos", "urgent",
+                                "INTEGER NOT NULL DEFAULT 0 CHECK (urgent IN (0,1))"),
+        lambda conn: add_column(conn, "todos", "flagged",
+                                "INTEGER NOT NULL DEFAULT 0 CHECK (flagged IN (0,1))"),
+        # SET NULL: deleting a parent on the phone (where subtasks look like ordinary
+        # reminders) must not silently delete its subtasks.
+        lambda conn: add_column(conn, "todos", "parent_id",
+                                "INTEGER REFERENCES todos(id) ON DELETE SET NULL"),
+        lambda conn: add_column(conn, "todos", "nag_count", "INTEGER NOT NULL DEFAULT 0"),
+        lambda conn: add_column(conn, "todos", "next_nag_at", "TEXT"),
+        "CREATE INDEX IF NOT EXISTS idx_todos_parent ON todos(parent_id)",
+        "CREATE INDEX IF NOT EXISTS idx_todos_due_alert ON todos(due_alert_sent, due_at)",
+        "CREATE INDEX IF NOT EXISTS idx_todos_nag ON todos(next_nag_at)",
+        """CREATE TABLE IF NOT EXISTS todo_tags (
+          todo_id INTEGER NOT NULL REFERENCES todos(id) ON DELETE CASCADE,
+          tag     TEXT    NOT NULL,
+          PRIMARY KEY (todo_id, tag)
+        )""",
+        "CREATE INDEX IF NOT EXISTS idx_todo_tags_tag ON todo_tags(tag)",
+        """CREATE TABLE IF NOT EXISTS todo_images (
+          id         INTEGER PRIMARY KEY AUTOINCREMENT,
+          todo_id    INTEGER NOT NULL REFERENCES todos(id) ON DELETE CASCADE,
+          user_id    INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+          mime       TEXT    NOT NULL,
+          size       INTEGER NOT NULL,
+          data       BLOB    NOT NULL,
+          created_at TEXT    NOT NULL
+        )""",
+        "CREATE INDEX IF NOT EXISTS idx_todo_images_todo ON todo_images(todo_id)",
+        lambda conn: migrate_due_alerts(conn),
+    ],
 ]
 
 TIME_FORMAT = "%Y-%m-%d %H:%M:%S"
@@ -223,6 +260,23 @@ def add_column(conn, table, column, decl):
 def migrate_email_verification(conn):
     if add_column(conn, "users", "email_verified_at", "TEXT"):
         conn.execute("UPDATE users SET email_verified_at = ?", (now_utc(),))
+
+
+def migrate_due_alerts(conn):
+    """Move existing reminders to the iPhone model without mailing anything twice.
+
+    A reminder without a due time becomes the due time; a reminder at or after the due
+    time is replaced by the alert at the due time; alerts that already passed or were
+    already sent are marked as sent.
+    """
+    now = now_utc()
+    conn.execute("UPDATE todos SET due_at = remind_at, due_alert_sent = reminder_sent, "
+                 "remind_at = NULL, reminder_sent = 0 "
+                 "WHERE due_at IS NULL AND remind_at IS NOT NULL")
+    conn.execute("UPDATE todos SET due_alert_sent = 1 WHERE due_at IS NOT NULL AND "
+                 "(due_at <= ? OR (reminder_sent = 1 AND remind_at >= due_at))", (now,))
+    conn.execute("UPDATE todos SET remind_at = NULL, reminder_sent = 0 "
+                 "WHERE remind_at IS NOT NULL AND due_at IS NOT NULL AND remind_at >= due_at")
 
 
 def init_db(path):

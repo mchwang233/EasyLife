@@ -14,7 +14,7 @@ todo between lists by writing it into another collection.
 
 Clients authenticate with HTTP Basic: the account e-mail plus an app-specific password
 generated in the settings page (only its SHA-256 is stored). Properties EasyLife does not
-model (RRULE, X-APPLE-*, RELATED-TO, ...) and the client's own VALARM blocks are kept in
+model (X-APPLE-*, EXDATE, ...) and the client's own VALARM blocks are kept in
 `dav_objects` and written back, so a round trip through EasyLife does not lose them.
 """
 
@@ -30,7 +30,7 @@ import secrets
 import urllib.parse
 import xml.etree.ElementTree as ET
 
-from easylife import auth, calendar_ics, db, lists, todos
+from easylife import auth, calendar_ics, db, lists, recurrence, todos
 
 try:
     import zoneinfo
@@ -61,10 +61,13 @@ DEFAULT_UID_RE = re.compile(r"^easylife-task-(\d{1,19})@easylife$")
 # Properties EasyLife writes itself; everything else in a client's VTODO is preserved.
 MANAGED = {"UID", "DTSTAMP", "CREATED", "LAST-MODIFIED", "SUMMARY", "DESCRIPTION", "STATUS",
            "PRIORITY", "DTSTART", "DUE", "DURATION", "COMPLETED", "PERCENT-COMPLETE", "SEQUENCE"}
+# Also managed: RRULE (todos.repeat) when EasyLife understands it, and the parent link
+# RELATED-TO;RELTYPE=PARENT (todos.parent_id, subtasks).
 # Matched by name: 高/中/低 <-> Reminders high (1) / medium (5) / low (9); 最低 <-> none (0).
 PRIORITY_OUT = {3: 1, 2: 5, 1: 9, 0: 0}
 # Fields compared with the snapshot taken when a client last wrote the object.
-SNAPSHOT_FIELDS = ("title", "details", "status", "priority", "due_at", "remind_at")
+SNAPSHOT_FIELDS = ("title", "details", "status", "priority", "due_at", "remind_at", "repeat",
+                   "parent_id")
 CHECK_OUT = re.compile(r"^(\s*)[-*+] \[([ xX])\] ?", re.M)
 CHECK_IN = re.compile(r"^(\s*)([\u2610\u2611\u2612]) ?", re.M)
 STATUS_OUT = {"open": "NEEDS-ACTION", "doing": "IN-PROCESS", "done": "COMPLETED"}
@@ -365,8 +368,29 @@ def parse_vtodo(text, tz):
         raise DavError(400, "DUE 不是有效的时间")
     alarms = [c for c in todo["children"] if c["name"] == "VALARM"]
     times = [t for t in (_alarm_time(a, todo, tz) for a in alarms) if t]
-    fields["remind_at"] = min(times) if times else None
-    extra = [raw for name, _, _, raw in todo["props"] if name not in MANAGED]
+    # The alarm at the due time is implied by the due time (iPhone model); only an
+    # earlier alarm is the "提前提醒". Without a due time the earliest alarm is the time.
+    due_at = fields["due_at"]
+    early = [t for t in times if due_at is None or t < due_at]
+    fields["remind_at"] = min(early) if early else None
+    if due_at is None and fields["remind_at"]:
+        fields["due_at"], fields["remind_at"] = fields["remind_at"], None
+    fields["repeat"] = None
+    rrule = _first(todo, "RRULE")
+    if rrule is not None:
+        try:
+            fields["repeat"] = recurrence.normalize(rrule[2])
+        except recurrence.RuleError:
+            fields["repeat"] = None    # kept verbatim below, but not modelled
+    fields["parent_uid"] = None
+    managed = set()
+    for prop in todo["props"]:
+        if prop[0] == "RELATED-TO" and prop[1].get("RELTYPE", "PARENT").upper() == "PARENT":
+            fields["parent_uid"] = prop[2].strip() or None
+            managed.add(prop[3])
+        if prop[0] == "RRULE" and fields["repeat"]:
+            managed.add(prop[3])
+    extra = [raw for name, _, _, raw in todo["props"] if name not in MANAGED and raw not in managed]
     for child in todo["children"]:
         if child["name"] != "VALARM":
             extra.extend(child["raw"])
@@ -390,7 +414,10 @@ def default_uid(todo_id):
 
 
 OBJECT_COLUMNS = ("t.id, t.title, t.details, t.status, t.priority, t.due_at, t.remind_at, t.list_id, "
-                  "t.created_at, t.updated_at, o.name AS dav_name, o.uid AS dav_uid, "
+                  "t.created_at, t.updated_at, t.repeat, t.parent_id, "
+                  "(SELECT COALESCE(po.uid, 'easylife-task-' || p.id || '@easylife') FROM todos p "
+                  "LEFT JOIN dav_objects po ON po.todo_id = p.id WHERE p.id = t.parent_id) "
+                  "AS parent_uid, o.name AS dav_name, o.uid AS dav_uid, "
                   "o.extra AS dav_extra, o.alarms AS dav_alarms, o.alarms_at AS dav_alarms_at, "
                   "o.raw AS dav_raw, o.snapshot AS dav_snapshot")
 
@@ -531,15 +558,29 @@ def _trigger_line(obj):
     return "TRIGGER;VALUE=DATE-TIME:" + calendar_ics.basic_time(obj["remind_at"])
 
 
-def _alarm_lines(obj):
-    esc = calendar_ics.escape_text
+def _alarm_block(obj, uid, trigger):
     return ["BEGIN:VALARM",
-            "UID:easylife-alarm-%d" % obj["id"],
-            "X-WR-ALARMUID:easylife-alarm-%d" % obj["id"],
+            "UID:" + uid,
+            "X-WR-ALARMUID:" + uid,
             "ACTION:DISPLAY",
-            "DESCRIPTION:" + esc(obj["title"]),
-            _trigger_line(obj),
+            "DESCRIPTION:" + calendar_ics.escape_text(obj["title"]),
+            trigger,
             "END:VALARM"]
+
+
+def _alarm_lines(obj):
+    """The alarm at the due time (as Reminders writes it) plus the optional earlier one."""
+    lines = []
+    if obj["due_at"]:
+        lines += _alarm_block(obj, "easylife-due-%d" % obj["id"], "TRIGGER;RELATED=START:PT0S")
+    if obj["remind_at"] and (not obj["due_at"] or obj["remind_at"] != obj["due_at"]):
+        lines += _alarm_block(obj, "easylife-alarm-%d" % obj["id"], _trigger_line(obj))
+    return lines
+
+
+def alarms_key(obj):
+    """What the client's own VALARM blocks were written for (echoed while unchanged)."""
+    return "%s|%s" % (obj["due_at"] or "", obj["remind_at"] or "")
 
 
 def _field_lines(obj, field):
@@ -561,12 +602,17 @@ def _field_lines(obj, field):
     if field == "due_at":
         # Reminders writes DTSTART = DUE; keeping both equal also satisfies RRULE.
         return [local_time("DTSTART", obj["due_at"]), local_time("DUE", obj["due_at"])] if obj["due_at"] else []
+    if field == "repeat":
+        return ["RRULE:" + obj["repeat"]] if obj["repeat"] else []
+    if field == "parent_id":
+        return ["RELATED-TO;RELTYPE=PARENT:" + obj["parent_uid"]] if obj["parent_uid"] else []
     return []
 
 
 FIELD_PROPS = {"title": {"SUMMARY"}, "details": {"DESCRIPTION"},
                "status": {"STATUS", "COMPLETED", "PERCENT-COMPLETE"}, "priority": {"PRIORITY"},
-               "due_at": {"DTSTART", "DUE", "DURATION"}}
+               "due_at": {"DTSTART", "DUE", "DURATION"}, "repeat": {"RRULE"},
+               "parent_id": {"RELATED-TO"}}
 
 
 def _patched_raw(obj):
@@ -591,7 +637,7 @@ def _patched_raw(obj):
     drop = {"DTSTAMP", "LAST-MODIFIED", "SEQUENCE"}
     for field in changed:
         drop |= FIELD_PROPS.get(field, set())
-    alarms_changed = "remind_at" in changed or ("due_at" in changed and obj["remind_at"])
+    alarms_changed = "remind_at" in changed or "due_at" in changed
     body, depth, skipping = [], 0, False
     for line in lines[begin + 1:end]:
         name, _, value = parse_line(line)
@@ -618,7 +664,7 @@ def _patched_raw(obj):
         head += _field_lines(obj, field)
     # Properties first, then sub-components, as RFC 5545 expects.
     first_sub = next((i for i, line in enumerate(body) if line.upper().startswith("BEGIN:")), len(body))
-    tail = _alarm_lines(obj) if alarms_changed and obj["remind_at"] else []
+    tail = _alarm_lines(obj) if alarms_changed else []
     new_body = body[:first_sub] + head + body[first_sub:] + tail
     prefix = lines[:begin + 1]
     key = _zone_key(output_zone())
@@ -655,12 +701,15 @@ def to_ics(obj):
             lines[begin:begin] = vtimezone_lines(output_zone())
     if obj["status"] == "done":
         lines += ["COMPLETED:" + b(obj["updated_at"]), "PERCENT-COMPLETE:100"]
+    if obj.get("repeat"):
+        lines.append("RRULE:" + obj["repeat"])
+    if obj.get("parent_uid"):
+        lines.append("RELATED-TO;RELTYPE=PARENT:" + obj["parent_uid"])
     lines += extra
-    if obj["remind_at"]:
-        if obj.get("dav_alarms") and obj.get("dav_alarms_at") == obj["remind_at"]:
-            lines += obj["dav_alarms"].split("\n")
-        else:
-            lines += _alarm_lines(obj)
+    if obj.get("dav_alarms") and obj.get("dav_alarms_at") == alarms_key(obj):
+        lines += obj["dav_alarms"].split("\n")
+    else:
+        lines += _alarm_lines(obj)
     lines += ["END:VTODO", "END:VCALENDAR"]
     return calendar_ics.fold_all(lines)
 
@@ -680,6 +729,21 @@ def _check_preconditions(headers, current):
         raise DavError(412, "资源已在别处修改，请刷新后重试")
 
 
+def _phone_parent(conn, user_id, todo_id, parent_uid, list_id):
+    """The parent id for a RELATED-TO from the client, or None when it cannot be one."""
+    parent_id = _uid_taken(conn, user_id, parent_uid) if parent_uid else None
+    if parent_id is None or parent_id == todo_id:
+        return None
+    parent = conn.execute("SELECT parent_id, list_id FROM todos WHERE id = ? AND user_id = ?",
+                          (parent_id, user_id)).fetchone()
+    if parent is None or parent["parent_id"] is not None or parent["list_id"] != list_id:
+        return None
+    if todo_id is not None and conn.execute("SELECT 1 FROM todos WHERE parent_id = ? LIMIT 1",
+                                            (todo_id,)).fetchone():
+        return None
+    return parent_id
+
+
 def put_object(conn, user_id, item, name, body, headers, tz):
     """Create or update one todo of list `item` from a VTODO. Returns 201 or 204.
 
@@ -687,6 +751,7 @@ def put_object(conn, user_id, item, name, body, headers, tz):
     that is how clients move a reminder between lists."""
     uid, fields, extra, alarms = parse_vtodo(body, tz)
     ical_priority = fields.pop("ical_priority")
+    parent_uid = fields.pop("parent_uid")
     list_id = lists.stored_id(item)
     with db.tx(conn):
         current = find_object(conn, user_id, name, include_archived=True)
@@ -704,10 +769,12 @@ def put_object(conn, user_id, item, name, body, headers, tz):
             sent = 1 if remind and remind < db.now_utc(-STALE_ALARM_SECONDS) else 0
             cur = conn.execute(
                 "INSERT INTO todos (user_id, title, details, status, priority, due_at, remind_at, "
-                "reminder_sent, list_id, created_at, updated_at) "
-                "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                "reminder_sent, list_id, created_at, updated_at, due_alert_sent, repeat, parent_id) "
+                "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
                 (user_id, fields["title"], fields["details"], fields["status"], fields["priority"],
-                 fields["due_at"], remind, sent, list_id, now, now))
+                 fields["due_at"], remind, sent, list_id, now, now,
+                 todos.alert_pending(fields["due_at"]), fields["repeat"],
+                 _phone_parent(conn, user_id, None, parent_uid, list_id)))
             todo_id, status = cur.lastrowid, 201
         else:
             todo_id = current["id"]
@@ -721,10 +788,24 @@ def put_object(conn, user_id, item, name, body, headers, tz):
             if fields["remind_at"] != current["remind_at"]:
                 remind = fields["remind_at"]
                 fields["reminder_sent"] = 1 if remind and remind < db.now_utc(-STALE_ALARM_SECONDS) else 0
+            if fields["due_at"] != current["due_at"]:
+                fields.update(due_alert_sent=todos.alert_pending(fields["due_at"]), nag_count=0,
+                              next_nag_at=None)
+            if fields["status"] in ("done", "archived"):
+                fields["next_nag_at"] = None
+            # Reminders on a CalDAV account cannot show subtasks: a missing RELATED-TO keeps
+            # the parent, a different one moves the task, and a move to another list detaches it.
+            if parent_uid:
+                fields["parent_id"] = _phone_parent(conn, user_id, todo_id, parent_uid, list_id)
+            elif current["parent_id"] is not None and list_id != current["list_id"]:
+                fields["parent_id"] = None
             fields["updated_at"] = now
             assignments = ", ".join("%s = ?" % k for k in fields)  # keys are fixed above
             conn.execute("UPDATE todos SET " + assignments + " WHERE id = ? AND user_id = ?",
                          list(fields.values()) + [todo_id, user_id])
+            if list_id != current["list_id"]:
+                conn.execute("UPDATE todos SET list_id = ?, updated_at = ? "
+                             "WHERE parent_id = ? AND user_id = ?", (list_id, now, todo_id, user_id))
         stored = conn.execute("SELECT " + ", ".join(SNAPSHOT_FIELDS) + " FROM todos WHERE id = ?",
                               (todo_id,)).fetchone()
         snapshot = json.dumps({k: stored[k] for k in SNAPSHOT_FIELDS}, ensure_ascii=False)
@@ -734,7 +815,7 @@ def put_object(conn, user_id, item, name, body, headers, tz):
             "name = excluded.name, uid = excluded.uid, extra = excluded.extra, "
             "alarms = excluded.alarms, alarms_at = excluded.alarms_at, raw = excluded.raw, "
             "snapshot = excluded.snapshot",
-            (todo_id, user_id, name, uid, extra, alarms, fields["remind_at"] if alarms else None,
+            (todo_id, user_id, name, uid, extra, alarms, alarms_key(stored) if alarms else None,
              body, snapshot))
     return status
 

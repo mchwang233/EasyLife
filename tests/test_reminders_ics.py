@@ -445,7 +445,7 @@ class RowCompatibilityTests(unittest.TestCase):
         self.assertIn("UID:easylife-todo-7@easylife", out)
         self.assertIn("PRIORITY:5", out)          # priority default 2 -> 5
         self.assertIn("STATUS:CONFIRMED", out)
-        self.assertIn("TRIGGER:-PT30M", out)      # no remind_at -> default alarm offset
+        self.assertIn("TRIGGER:PT0M", out)        # no remind_at -> alert at the due time
         self.assertIn("DESCRIPTION:优先级 2", self.unfold(out))
 
         timed_out = row_todo(due_at=None, remind_at=None)

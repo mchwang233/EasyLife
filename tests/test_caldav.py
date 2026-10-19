@@ -316,7 +316,9 @@ class SyncTests(CalDavTestCase):
         self.assertNotIn("ALARM-1", ics)
         self.assertIn("DUE;TZID=Asia/Shanghai:20261020T180000", ics)  # untouched field kept
         self.assertIn("SUMMARY:买牛奶\\, 鸡蛋", ics)
-        self.assertEqual(ics.count("BEGIN:VALARM"), 1)
+        # iPhone model: one alarm at the due time plus the earlier one.
+        self.assertEqual(ics.count("BEGIN:VALARM"), 2)
+        self.assertIn("TRIGGER;RELATED=START:PT0S", ics)
         # Changing the due date replaces DTSTART and DUE together.
         self.web.request("PUT", "/todos/api/todos/%d" % row["id"], {"due_at": "2026-10-21T02:00:00Z"})
         resp, raw = self.dav("GET", href)

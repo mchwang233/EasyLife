@@ -113,9 +113,12 @@ def todo_time(todo):
 
 
 def _alarm_minutes(todo):
-    """Trigger offset in minutes before DTSTART (default 30)."""
+    """Trigger offset in minutes before DTSTART: the early alert, else the due time itself
+    (iPhone model); 30 minutes for a reminder time without a due time."""
     start = _field(todo, "due_at") or _field(todo, "remind_at")
     remind = _field(todo, "remind_at")
+    if _field(todo, "due_at") and not remind:
+        return 0
     if remind and start:
         delta = (_parse(start) - _parse(remind)).total_seconds() / 60.0
         if 0 < delta <= 7 * 24 * 60:
@@ -166,6 +169,8 @@ def event_lines(todo, base_url="", *, with_alarm=True, with_details=True):
         lines.append("DESCRIPTION:" + _description(todo, base_url))
         lines.append("STATUS:" + ("COMPLETED" if _field(todo, "status") == "done" else "CONFIRMED"))
         lines.append("PRIORITY:%d" % PRIORITY_MAP.get(_field(todo, "priority", 2), 5))
+    if _field(todo, "repeat") and _field(todo, "due_at"):
+        lines.append("RRULE:" + _field(todo, "repeat"))
     if with_alarm:
         lines += [
             "BEGIN:VALARM",
@@ -194,7 +199,8 @@ def calendar_feed(todos, *, name=FEED_NAME, base_url=""):
                        key=lambda t: (_field(t, "due_at") or _field(t, "remind_at") or "",
                                       _field(t, "id"))):
         try:
-            events += event_lines(todo, base_url, with_alarm=bool(_field(todo, "remind_at")),
+            events += event_lines(todo, base_url,
+                                  with_alarm=bool(_field(todo, "remind_at") or _field(todo, "due_at")),
                                   with_details=False)
         except IcsError:
             continue  # tasks without a time simply do not appear in the feed

@@ -189,7 +189,7 @@ class FrontendSourceTests(unittest.TestCase):
         js = self.read("app.js")
         for label in ("登录", "注册", "登出", "设置", "新建任务", "删除任务",
                       "下载到日历(.ics)", "Google 日历", "标题", "详情", "优先级",
-                      "截止时间", "提醒时间", "笔记", "重置订阅地址"):
+                      "提醒时间", "提前提醒", "重复", "旗标", "紧急", "标签", "子任务", "图片", "笔记", "重置订阅地址"):
             self.assertIn(label, html, label)
         for call in ("/api/register", "/api/login", "/api/logout", "/api/me", "/api/todos",
                      "/notes", "/ics", "/api/calendar/token/reset"):

@@ -116,6 +116,7 @@ class AdminMailTests(unittest.TestCase):
         return value
 
     def pending_todo(self):
+        # A reminder without a due time becomes the due time, alerted there.
         return todos.create_todo(self.conn, 1, {"title": "邮件配置运行时测试",
                                                 "remind_at": db.now_utc(-60)})["id"]
 
@@ -246,7 +247,7 @@ class AdminMailTests(unittest.TestCase):
             self.assertEqual(reminders.run_once(self.conn, cfg=self.server.cfg), [])
             smtp.assert_not_called()
             ssl.assert_not_called()
-        self.assertEqual(self.conn.execute("SELECT reminder_sent FROM todos WHERE id = ?", (todo_id,)).fetchone()[0], 0)
+        self.assertEqual(self.conn.execute("SELECT due_alert_sent FROM todos WHERE id = ?", (todo_id,)).fetchone()[0], 0)
         self.assertTrue(self.put({"enabled": True})["mail"]["enabled"])
         self.conn.execute("DELETE FROM site_settings WHERE key = ?", (mail_settings.KEY,))
         result = self.get()
@@ -405,7 +406,7 @@ class AdminMailTests(unittest.TestCase):
             self.assertEqual(auth_mail.send(self.conn, user, "reset", self.server.cfg), "failed")
             self.assertEqual(reminders.run_once(self.conn, cfg=self.server.cfg), [])
         self.no_secrets("\n".join(logs.output))
-        self.assertEqual(self.conn.execute("SELECT reminder_sent FROM todos WHERE id = ?", (todo_id,)).fetchone()[0], 0)
+        self.assertEqual(self.conn.execute("SELECT due_alert_sent FROM todos WHERE id = ?", (todo_id,)).fetchone()[0], 0)
 
     def test_rate_limit_counts_failures_across_sessions_and_recipients_and_expires(self):
         self.put(self.smtp_settings())
@@ -449,7 +450,7 @@ class AdminMailTests(unittest.TestCase):
             login, = [call for call in transport.calls if call[0] == "login"]
             self.assertTrue(login[2] == self.old_password)
         self.assertTrue(before == [dict(row) for row in self.conn.execute("SELECT * FROM auth_tokens")])
-        self.assertEqual(self.conn.execute("SELECT reminder_sent FROM todos WHERE id = ?", (todo_id,)).fetchone()[0], 0)
+        self.assertEqual(self.conn.execute("SELECT due_alert_sent FROM todos WHERE id = ?", (todo_id,)).fetchone()[0], 0)
         self.assertIsNone(self.conn.execute("SELECT used_at FROM auth_tokens WHERE token_hash = ?",
                                            (auth.hash_token(token),)).fetchone()[0])
 
@@ -565,15 +566,15 @@ class AdminMailTests(unittest.TestCase):
         todo_id = self.pending_todo()
         self.server.start_reminders(sender=sender)
         self.assertTrue(first_round.wait(4), "running thread did not scan disabled settings")
-        self.assertEqual(self.conn.execute("SELECT reminder_sent FROM todos WHERE id = ?", (todo_id,)).fetchone()[0], 0)
+        self.assertEqual(self.conn.execute("SELECT due_alert_sent FROM todos WHERE id = ?", (todo_id,)).fetchone()[0], 0)
         self.put(self.smtp_settings())
         self.assertTrue(accepted.wait(4), "running thread did not pick up committed settings")
         deadline = time.monotonic() + 2
         while time.monotonic() < deadline:
-            if self.conn.execute("SELECT reminder_sent FROM todos WHERE id = ?", (todo_id,)).fetchone()[0]:
+            if self.conn.execute("SELECT due_alert_sent FROM todos WHERE id = ?", (todo_id,)).fetchone()[0]:
                 break
             time.sleep(0.01)
-        self.assertEqual(self.conn.execute("SELECT reminder_sent FROM todos WHERE id = ?", (todo_id,)).fetchone()[0], 1)
+        self.assertEqual(self.conn.execute("SELECT due_alert_sent FROM todos WHERE id = ?", (todo_id,)).fetchone()[0], 1)
         self.assertEqual(seen[-1]["host"], "smtp.saved.example")
         self.assertTrue(seen[-1]["password"] == self.old_password)
         self.assertEqual([entry["host"] for entry in seen if entry["host"]], ["smtp.saved.example"])

@@ -15,6 +15,11 @@
     /* CalDAV 同步：服务端公开信息；明文密码只在生成后显示一次，不进 state。 */
     dav: null,
     filter: "all",
+    /* 标签筛选（本地）："" 表示不过滤。 */
+    tag: "",
+    /* 标签输入框：{ "new-tags": [...], "d-tags": [...] } */
+    tags: {},
+    lightbox: null,
     authMode: "login",
     authToken: "",
     view: "",
@@ -169,19 +174,31 @@
     holder.setAttribute("role", "group");
     holder.setAttribute("aria-label", labelText(select.id));
     var buttons = [];
-    Array.prototype.forEach.call(select.querySelectorAll("option"), function (option) {
-      var value = option.getAttribute("value");
-      var button = el("button", "seg-btn", option.textContent.trim());
-      button.type = "button";
-      button.dataset.value = value;
-      button.addEventListener("click", function () {
-        select.value = value;
-        refreshPickers();
+    var built = "";
+    // Options can change (a custom repeat rule from the phone): rebuild when they do.
+    function build() {
+      var options = select.querySelectorAll("option");
+      var key = Array.prototype.map.call(options, function (o) { return o.getAttribute("value"); }).join("|");
+      if (key === built) { return; }
+      built = key;
+      holder.replaceChildren();
+      buttons = [];
+      Array.prototype.forEach.call(options, function (option) {
+        var value = option.getAttribute("value");
+        var button = el("button", "seg-btn", option.textContent.trim());
+        button.type = "button";
+        button.dataset.value = value;
+        button.addEventListener("click", function () {
+          select.value = value;
+          refreshPickers();
+        });
+        holder.appendChild(button);
+        buttons.push(button);
       });
-      holder.appendChild(button);
-      buttons.push(button);
-    });
+    }
+    build();
     pickers.push({ refresh: function () {
+      build();
       buttons.forEach(function (button) {
         var active = button.dataset.value === String(select.value);
         button.classList.toggle("is-active", active);
@@ -260,6 +277,16 @@
 
   function refreshPickers() {
     pickers.forEach(function (picker) { picker.refresh(); });
+    syncTimeOptions("new");
+    syncTimeOptions("d");
+  }
+
+  /* 「提前提醒」「重复」只在设了提醒时间后出现；勾选「紧急」时显示说明。 */
+  function syncTimeOptions(prefix) {
+    var options = $("#" + prefix + "-time-options");
+    if (options) { options.hidden = !$("#" + prefix + "-due").value; }
+    var hint = $("#" + prefix + "-urgent-hint");
+    if (hint) { hint.hidden = !$("#" + prefix + "-urgent").checked; }
   }
 
   function pickerPanel() {
@@ -338,7 +365,7 @@
       };
     }
 
-    // 快捷：常用日期；提醒时间另给「截止前…」。
+    // 快捷：常用日期。
     var quick = el("div", "dt-quick");
     var today = new Date(); today.setHours(0, 0, 0, 0);
     var nextMonday = new Date(today.getTime());
@@ -348,15 +375,6 @@
       quick.appendChild(chip(item[0], "dt-chip", onDay(day)));
     });
     quick.appendChild(chip("下周一", "dt-chip", onDay(nextMonday)));
-    var dueId = { "new-remind": "new-due", "d-remind": "d-due" }[picker.input.id];
-    var due = dueId ? parseLocal($("#" + dueId).value) : null;
-    if (due) {
-      [["截止前 15 分钟", 15], ["前 1 小时", 60], ["前 1 天", 1440]].forEach(function (item) {
-        quick.appendChild(chip(item[0], "dt-chip accent", function () {
-          setPicked(picker, new Date(due.getTime() - item[1] * 60000));
-        }));
-      });
-    }
     panel.appendChild(quick);
 
     // 月历
@@ -629,7 +647,10 @@
 
   function api(method, path, payload, request) {
     var options = { method: method, credentials: "same-origin", cache: "no-store", headers: {} };
-    if (payload !== undefined) {
+    if (typeof Blob !== "undefined" && payload instanceof Blob) {
+      options.headers["Content-Type"] = payload.type || "application/octet-stream";
+      options.body = payload;                     // 图片上传：原样发送文件内容
+    } else if (payload !== undefined) {
       options.headers["Content-Type"] = "application/json";
       options.body = JSON.stringify(payload);
     }
@@ -710,6 +731,7 @@
   // ------------------------------------------------------------ 视图切换
 
   function showView(name) {
+    closeLightbox();
     var previous = state.view;
     if (state.view === "reset" && name !== "reset") {
       $("#recovery-password").value = "";
@@ -1426,6 +1448,8 @@
     if (!$("#new-list").value || state.composerListFor !== state.listFilter) { syncComposerList(); }
     fillListSelect($("#d-list"), state.current ? (listOf(state.current) || {}).id : null);
     Array.prototype.forEach.call(document.querySelectorAll(".list-field"), function (node) { node.hidden = !multiple; });
+    // 子任务跟着上级任务所在的列表，不能单独改。
+    if (state.current && state.current.parent_id) { $("#d-list-field").hidden = true; }
     var item = currentList();
     setText($("#list-heading"), item ? item.name : "我的任务");
   }
@@ -1525,7 +1549,8 @@
     if (!state.user) { return Promise.resolve(); }
     var request = ++state.listRequest;
     var filter = state.filter;
-    var dateFilter = filter === "today" || filter === "upcoming";
+    // 日期与旗标在本地筛选：需要全部未归档任务。
+    var dateFilter = filter === "today" || filter === "upcoming" || filter === "flagged";
     var items = [];
     var query = new URLSearchParams();
     if (filter !== "all" && !dateFilter) { query.set("status", filter); }
@@ -1575,6 +1600,8 @@
     weekEnd.setDate(weekEnd.getDate() + 7);
     var end = localDate(weekEnd);
     var items = state.todos.filter(function (todo) {
+      if (state.tag && (todo.tags || []).indexOf(state.tag) < 0) { return false; }
+      if (state.filter === "flagged") { return !!todo.flagged && todo.status !== "archived"; }
       if (state.filter !== "today" && state.filter !== "upcoming") { return true; }
       if (todo.status === "done" || todo.status === "archived" || !todo.due_at) { return false; }
       var due = toLocalInput(todo.due_at).slice(0, 10);
@@ -1584,29 +1611,60 @@
     list.hidden = false;
     $("#list-count").hidden = false;
     list.replaceChildren();
+    // 子任务排在上级任务下面；上级任务不在当前筛选结果里时单独显示。
+    var shown = {};
+    items.forEach(function (todo) { shown[todo.id] = true; });
+    var children = {};
+    items.forEach(function (todo) {
+      if (todo.parent_id && shown[todo.parent_id]) { (children[todo.parent_id] = children[todo.parent_id] || []).push(todo); }
+    });
+    var top = items.filter(function (todo) { return !(todo.parent_id && shown[todo.parent_id]); });
+    function append(todo) {
+      list.appendChild(todoItem(todo, false));
+      (children[todo.id] || []).forEach(function (child) { list.appendChild(todoItem(child, true)); });
+    }
     // 「全部」里未完成在前；已完成的沉到底部并加一个分组标题，不再和待办混排。
-    var open = items.filter(function (todo) { return todo.status !== "done"; });
-    var done = items.filter(function (todo) { return todo.status === "done"; });
+    var open = top.filter(function (todo) { return todo.status !== "done"; });
+    var done = top.filter(function (todo) { return todo.status === "done"; });
     var grouped = state.filter === "all" && open.length && done.length;
-    (grouped ? open : items).forEach(function (todo) { list.appendChild(todoItem(todo)); });
+    (grouped ? open : top).forEach(append);
     if (grouped) {
       var group = el("li", "todo-group", "已完成 · " + done.length);
       group.setAttribute("aria-hidden", "true");
       list.appendChild(group);
-      done.forEach(function (todo) { list.appendChild(todoItem(todo)); });
+      done.forEach(append);
     }
     $("#list-empty").hidden = items.length > 0;
-    $("#empty-all").hidden = state.filter === "all";
-    var hints = { today: "今天截止的未完成任务（按本地时间）。", upcoming: "明天起未来 7 天截止的未完成任务（按本地时间）。" };
-    setText($("#filter-hint"), hints[state.filter] || (state.filter === "all" ? "所有未归档任务，按优先级与截止时间排列。" : "查看「" + STATUS_LABELS[state.filter] + "」任务。"));
-    setText($("#empty-title"), state.filter === "all" ? "给今天留一点期待" : state.filter === "done" ? "每一次完成，都值得记录" : "这里暂时没有任务");
-    setText($("#empty-message"), state.filter === "all" ? "还没有任务。从一件小事开始吧。" : "当前筛选下没有任务，可以看看全部任务，或添加新计划。");
+    $("#empty-all").hidden = state.filter === "all" && !state.tag;
+    $("#tag-filter").hidden = !state.tag;
+    setText($("#tag-filter-name"), state.tag ? "#" + state.tag : "");
+    var hints = { today: "今天要提醒的未完成任务（按本地时间）。", upcoming: "明天起未来 7 天的未完成任务（按本地时间）。",
+      flagged: "标了旗标的任务。" };
+    setText($("#filter-hint"), hints[state.filter] || (state.filter === "all" ? "所有未归档任务，按优先级与时间排列。" : "查看「" + STATUS_LABELS[state.filter] + "」任务。"));
+    setText($("#empty-title"), state.filter === "all" && !state.tag ? "给今天留一点期待" : state.filter === "done" ? "每一次完成，都值得记录" : "这里暂时没有任务");
+    setText($("#empty-message"), state.filter === "all" && !state.tag ? "还没有任务。从一件小事开始吧。" : "当前筛选下没有任务，可以看看全部任务，或添加新计划。");
     setText($("#list-count"), items.length ? "共 " + items.length + " 件任务 · 已完成 " + items.filter(function (todo) { return todo.status === "done"; }).length + " 件" : "");
   }
 
-  function todoItem(todo) {
+  function selectTag(tag) {
+    state.tag = tag || "";
+    renderTodos();
+    if (state.tag) { $("#tag-filter-clear").focus(); }
+  }
+
+  /* 「每周」「工作日」……；手机上设置的其他规则显示为「自定义重复」。 */
+  function repeatLabel(rule) {
+    if (!rule) { return ""; }
+    var match = Array.prototype.filter.call($("#d-repeat").querySelectorAll("option"), function (option) {
+      return option.getAttribute("value") === rule && !option.dataset.custom;
+    })[0];
+    return match ? match.textContent.trim() : "自定义重复";
+  }
+
+  function todoItem(todo, nested) {
     var item = el("li", "todo" + (todo.status === "done" ? " is-done" : "") +
-      (todo.status === "archived" ? " is-archived" : "") + (todo.priority === 3 ? " is-urgent" : "") + " prio-" + todo.priority);
+      (todo.status === "archived" ? " is-archived" : "") + (todo.priority === 3 ? " is-urgent" : "") +
+      (nested ? " is-subtask" : "") + " prio-" + todo.priority);
 
     var check = el("input", "check");
     check.type = "checkbox";
@@ -1618,6 +1676,11 @@
 
     var main = el("div", "todo-main");
     var title = el("button", "todo-title");
+    if (todo.flagged) {
+      var flag = el("span", "flag-mark", "⚑");
+      flag.setAttribute("aria-label", "已标旗标");
+      title.appendChild(flag);
+    }
     title.appendChild(el("span", "todo-title-text", todo.title));
     title.setAttribute("title", todo.title);
     title.type = "button";
@@ -1628,12 +1691,17 @@
     var meta = el("div", "todo-meta");
     var pending = todo.status !== "done" && todo.status !== "archived";
     var owner = listOf(todo);
-    if (owner && state.listFilter === "all" && state.lists.length > 1) {
+    if (owner && state.listFilter === "all" && state.lists.length > 1 && !nested) {
       var tag = el("span", "meta-item list-tag");
       tag.appendChild(listDot(owner));
-      tag.appendChild(document.createTextNode(owner.name));
+      tag.appendChild(el("span", "", owner.name));
       meta.appendChild(tag);
     }
+    if (todo.parent_id && !nested) {
+      var parent = state.todos.filter(function (other) { return other.id === todo.parent_id; })[0];
+      if (parent) { meta.appendChild(el("span", "meta-item", "↳ " + parent.title)); }
+    }
+    if (todo.urgent && pending) { meta.appendChild(el("span", "tag urgent-tag", "紧急")); }
     if (todo.status === "doing" || todo.status === "archived") {
       meta.appendChild(el("span", "tag status-" + todo.status, STATUS_LABELS[todo.status]));
     }
@@ -1644,17 +1712,27 @@
       var overdue = pending && new Date(toLocalInput(todo.due_at)) < new Date();
       var dueToday = toLocalInput(todo.due_at).slice(0, 10) === localDate(new Date());
       meta.appendChild(el("span", "meta-item " + (!pending ? "" : overdue ? "due-overdue" : dueToday ? "due-today" : "due-future"),
-        (overdue ? "已逾期 · " : "截止 ") + friendlyTime(todo.due_at)));
+        (overdue ? "已逾期 · " : "") + friendlyTime(todo.due_at)));
     }
-    if (todo.remind_at && pending) {
-      meta.appendChild(el("span", "meta-item", (todo.reminder_sent ? "已提醒 · " : "提醒 ") + friendlyTime(todo.remind_at)));
+    if (todo.repeat) { meta.appendChild(el("span", "meta-item", "↻ " + repeatLabel(todo.repeat))); }
+    if (todo.subtask_total) {
+      meta.appendChild(el("span", "meta-item" + (todo.subtask_done === todo.subtask_total ? " checklist-done" : ""),
+        "子任务 " + todo.subtask_done + "/" + todo.subtask_total));
     }
     var tasks = String(todo.details || "").match(/^\s*(?:[-*+]|\d{1,3}[.)])\s+\[[ xX]\]/gm) || [];
     if (tasks.length) {
       var checked = tasks.filter(function (value) { return /\[[xX]\]$/.test(value); }).length;
       meta.appendChild(el("span", "meta-item" + (checked === tasks.length ? " checklist-done" : ""), "清单 " + checked + "/" + tasks.length));
     }
+    if (todo.image_count) { meta.appendChild(el("span", "meta-item", "图片 " + todo.image_count)); }
     if (todo.notes_count) { meta.appendChild(el("span", "meta-item", todo.notes_count + " 条笔记")); }
+    (todo.tags || []).forEach(function (name) {
+      var chipButton = el("button", "tag-chip tag-link", "#" + name);
+      chipButton.type = "button";
+      chipButton.setAttribute("aria-label", "只看标签「" + name + "」");
+      chipButton.addEventListener("click", function () { selectTag(name); });
+      meta.appendChild(chipButton);
+    });
     var snippet = plainSnippet(todo.details);
     if (snippet) { main.appendChild(el("p", "todo-snippet", snippet)); }
     if (meta.childNodes.length) { main.appendChild(meta); }
@@ -1664,7 +1742,7 @@
     var remove = el("button", "icon-button danger", "删除");
     remove.type = "button";
     remove.setAttribute("aria-label", "删除任务：" + todo.title);
-    remove.addEventListener("click", function () { deleteTodo(todo.id, todo.title); });
+    remove.addEventListener("click", function () { deleteTodo(todo.id, todo.title, todo.subtask_total); });
     actions.appendChild(remove);
     item.appendChild(actions);
 
@@ -1680,6 +1758,11 @@
     return { 3: "高", 2: "中", 1: "低", 0: "最低" }[priority] || "中";
   }
 
+  function doneMessage(updated, checked) {
+    if (checked && updated.repeated) { return "已完成一次，下次：" + friendlyTime(updated.repeated.to); }
+    return checked ? "已标记为完成" : "已恢复为待办";
+  }
+
   function toggleDone(todo, checked) {
     api("PUT", "./api/todos/" + todo.id, { status: checked ? "done" : "open" })
       .then(function (updated) {
@@ -1687,7 +1770,7 @@
           state.current = updated;
           renderDetail(updated);
         }
-        showToast(checked ? "已标记为完成" : "已恢复为待办", "ok", "#list-feedback");
+        showToast(doneMessage(updated, checked), "ok", "#list-feedback");
         return loadTodos();
       })
       .catch(function (error) {
@@ -1701,8 +1784,9 @@
       });
   }
 
-  function deleteTodo(id, title) {
-    confirmDialog('确定删除任务「' + title + '」吗？删除后无法恢复。', "删除")
+  function deleteTodo(id, title, subtasks) {
+    var extra = subtasks ? "以及它的 " + subtasks + " 个子任务" : "";
+    confirmDialog('确定删除任务「' + title + '」' + extra + '吗？删除后无法恢复。', "删除")
       .then(function (confirmed) {
         if (!confirmed) { return null; }
         return api("DELETE", "./api/todos/" + id).then(function () {
@@ -1725,6 +1809,349 @@
           fail(error);
         });
       });
+  }
+
+  // ------------------------------------------------------------ 提醒、重复与标记
+
+  function utcDate(value) {
+    var parts = /^(\d{4})-(\d{2})-(\d{2})[ T](\d{2}):(\d{2})(?::(\d{2}))?/.exec(value || "");
+    return parts ? new Date(Date.UTC(+parts[1], +parts[2] - 1, +parts[3], +parts[4], +parts[5], +(parts[6] || 0))) : null;
+  }
+
+  function utcString(date) {
+    return date.getUTCFullYear() + "-" + pad2(date.getUTCMonth() + 1) + "-" + pad2(date.getUTCDate()) +
+      " " + pad2(date.getUTCHours()) + ":" + pad2(date.getUTCMinutes()) + ":" + pad2(date.getUTCSeconds());
+  }
+
+  /* 提前提醒的分钟数（字符串，"" 表示不提前）。 */
+  function earlyMinutes(todo) {
+    var due = utcDate(todo.due_at);
+    var remind = utcDate(todo.remind_at);
+    if (!due || !remind) { return ""; }
+    var minutes = Math.round((due - remind) / 60000);
+    return minutes > 0 ? String(minutes) : "";
+  }
+
+  function durationLabel(minutes) {
+    if (minutes % 10080 === 0) { return minutes / 10080 + " 周"; }
+    if (minutes % 1440 === 0) { return minutes / 1440 + " 天"; }
+    if (minutes % 60 === 0) { return minutes / 60 + " 小时"; }
+    return minutes + " 分钟";
+  }
+
+  /* 设定选择框的值；值不在选项里时（手机上设置的）临时加一个选项。 */
+  function setChoice(select, value, customLabel) {
+    Array.prototype.forEach.call(select.querySelectorAll("option"), function (option) {
+      if (option.dataset.custom) { option.remove(); }
+    });
+    var known = Array.prototype.some.call(select.querySelectorAll("option"), function (option) {
+      return option.getAttribute("value") === value;
+    });
+    if (!known) {
+      var option = el("option", "", customLabel || value);
+      option.setAttribute("value", value);
+      option.dataset.custom = "1";
+      select.appendChild(option);
+    }
+    select.value = value;
+  }
+
+  /* 表单里的提醒时间、提前提醒、重复、旗标、紧急、标签 -> 接口字段。 */
+  function timeFields(prefix) {
+    var dueLocal = $("#" + prefix + "-due").value;
+    var due = fromLocalInput(dueLocal);
+    var early = Number($("#" + prefix + "-early").value);
+    var remind = null;
+    if (due && early > 0) { remind = utcString(new Date(utcDate(due).getTime() - early * 60000)); }
+    return {
+      due_at: due,
+      remind_at: remind,
+      repeat: due ? ($("#" + prefix + "-repeat").value || null) : null,
+      flagged: !!$("#" + prefix + "-flagged").checked,
+      urgent: !!$("#" + prefix + "-urgent").checked,
+      tags: readTags(prefix + "-tags")
+    };
+  }
+
+  function alertSummary(todo) {
+    var pending = todo.status !== "done" && todo.status !== "archived";
+    if (!todo.due_at) { return "提醒：未设置"; }
+    if (!pending) { return "提醒：" + friendlyTime(todo.due_at); }
+    if (todo.remind_at && !todo.reminder_sent) { return "下次提醒：" + friendlyTime(todo.remind_at) + "（提前提醒）"; }
+    if (!todo.due_alert_sent) { return "下次提醒：" + friendlyTime(todo.due_at); }
+    return "提醒：已发送";
+  }
+
+  function renderAlertState(todo) {
+    var nagging = !!(todo.urgent && todo.next_nag_at && todo.status !== "done" && todo.status !== "archived");
+    $("#d-nag").hidden = !nagging;
+    if (nagging) {
+      setText($("#d-nag-text"), "紧急提醒进行中：已额外提醒 " + (todo.nag_count || 0) + " 次，下一次 " + friendlyTime(todo.next_nag_at) + "。");
+    }
+  }
+
+  function stopAlerts() {
+    var todo = state.current;
+    if (!todo) { return; }
+    var button = $("#btn-stop-alerts");
+    setBusy(button, true, "正在停止…");
+    api("POST", "./api/todos/" + todo.id + "/stop-alerts", {}).then(function (updated) {
+      if (!state.current || state.current.id !== updated.id) { return; }
+      state.current.next_nag_at = updated.next_nag_at;
+      renderAlertState(updated);
+      showToast("已停止这次的紧急提醒", "ok", "#detail-feedback");
+    }).catch(fail).then(function () { setBusy(button, false); });
+  }
+
+  // ------------------------------------------------------------ 标签输入
+
+  function initTags() {
+    Array.prototype.forEach.call(document.querySelectorAll(".tags-field"), function (holder) {
+      var key = holder.dataset.tags;
+      var input = $("#" + key + "-entry");
+      state.tags[key] = [];
+      input.addEventListener("keydown", function (event) {
+        if (event.isComposing) { return; }        // 中文输入法正在选字
+        if (event.key === "Enter" || event.key === "," || event.key === "，") {
+          event.preventDefault();
+          commitTag(key);
+        } else if (event.key === "Backspace" && !input.value && state.tags[key].length) {
+          setTags(key, state.tags[key].slice(0, -1));
+        }
+      });
+      input.addEventListener("blur", function () { commitTag(key); });
+    });
+  }
+
+  function cleanTag(value) {
+    return String(value || "").replace(/^[#＃]+/, "").replace(/\s+/g, " ").trim().slice(0, 30);
+  }
+
+  function commitTag(key) {
+    var input = $("#" + key + "-entry");
+    var parts = String(input.value || "").split(/[,，]/).map(cleanTag).filter(Boolean);
+    input.value = "";
+    if (!parts.length) { return; }
+    var tags = state.tags[key].slice();
+    parts.forEach(function (tag) {
+      var exists = tags.some(function (item) { return item.toLowerCase() === tag.toLowerCase(); });
+      if (!exists && tags.length < 10) { tags.push(tag); }
+    });
+    setTags(key, tags);
+  }
+
+  function readTags(key) {
+    commitTag(key);
+    return (state.tags[key] || []).slice();
+  }
+
+  function setTags(key, tags) {
+    state.tags[key] = tags.slice();
+    var list = $("#" + key + "-list");
+    list.replaceChildren();
+    tags.forEach(function (tag, index) {
+      var item = el("span", "tag-chip");
+      item.appendChild(el("span", "", "#" + tag));
+      var remove = el("button", "tag-remove", "×");
+      remove.type = "button";
+      remove.setAttribute("aria-label", "删除标签 " + tag);
+      remove.addEventListener("click", function () {
+        var next = state.tags[key].slice();
+        next.splice(index, 1);
+        setTags(key, next);
+        $("#" + key + "-entry").focus();
+      });
+      item.appendChild(remove);
+      list.appendChild(item);
+    });
+  }
+
+  // ------------------------------------------------------------ 子任务与图片
+
+  /* 只刷新详情页的子任务、图片和提醒状态，不覆盖正在编辑但未保存的字段。 */
+  function refreshDetailParts() {
+    var current = state.current;
+    if (!current) { return Promise.resolve(); }
+    return api("GET", "./api/todos/" + current.id).then(function (todo) {
+      if (!state.current || state.current.id !== todo.id) { return; }
+      ["subtasks", "subtask_total", "subtask_done", "images", "image_count", "next_nag_at", "nag_count"].forEach(function (key) {
+        state.current[key] = todo[key];
+      });
+      renderSubtasks(todo);
+      renderImages(todo);
+      renderAlertState(todo);
+    }).catch(fail);
+  }
+
+  function renderSubtasks(todo) {
+    // 子任务只有一层，和「提醒事项」一样。
+    $("#subtasks").hidden = !!todo.parent_id;
+    var list = $("#subtask-list");
+    list.replaceChildren();
+    (todo.subtasks || []).forEach(function (child) {
+      var item = el("li", "subtask" + (child.status === "done" ? " is-done" : ""));
+      var check = el("input", "check");
+      check.type = "checkbox";
+      check.id = "subtask-check-" + child.id;
+      check.checked = child.status === "done";
+      check.setAttribute("aria-label", (check.checked ? "恢复为待办：" : "标记完成：") + child.title);
+      check.addEventListener("change", function () {
+        check.disabled = true;
+        api("PUT", "./api/todos/" + child.id, { status: check.checked ? "done" : "open" })
+          .then(function (updated) {
+            if (updated.repeated) { showToast(doneMessage(updated, true), "ok", "#subtask-feedback"); }
+            return refreshDetailParts();
+          })
+          .catch(function (error) { fail(error); return refreshDetailParts(); });
+      });
+      item.appendChild(check);
+      var title = el("button", "subtask-title", child.title);
+      title.type = "button";
+      title.addEventListener("click", function () { go("#/todos/" + child.id); });
+      item.appendChild(title);
+      if (child.due_at) { item.appendChild(el("span", "meta-item", friendlyTime(child.due_at))); }
+      list.appendChild(item);
+    });
+    setText($("#subtask-count"), todo.subtask_total ? todo.subtask_done + "/" + todo.subtask_total : "");
+  }
+
+  function addSubtask(event) {
+    event.preventDefault();
+    var parent = state.current;
+    var title = $("#subtask-title").value.trim();
+    if (!parent || !title) { $("#subtask-title").focus(); return; }
+    var button = $("#subtask-submit");
+    if (button.disabled) { return; }
+    setBusy(button, true, "添加中…");
+    api("POST", "./api/todos", { title: title, parent_id: parent.id }).then(function () {
+      $("#subtask-title").value = "";
+      $("#subtask-title").focus();
+      return refreshDetailParts();
+    }).catch(function (error) {
+      if (error.status !== 401) { showToast(error.message || "添加失败，请重试", "error", "#subtask-feedback"); }
+    }).then(function () { setBusy(button, false); });
+  }
+
+  var IMAGES_MAX = 9;
+
+  function renderImages(todo) {
+    var images = todo.images || [];
+    var grid = $("#image-grid");
+    grid.replaceChildren();
+    images.forEach(function (image, index) {
+      var item = el("li", "image-item");
+      var open = el("button", "thumb");
+      open.type = "button";
+      open.setAttribute("aria-label", "查看第 " + (index + 1) + " 张图片");
+      var img = el("img");
+      img.setAttribute("src", "./" + image.url);
+      img.setAttribute("alt", "");
+      img.setAttribute("loading", "lazy");
+      open.appendChild(img);
+      open.addEventListener("click", function () { openLightbox(index); });
+      item.appendChild(open);
+      var remove = el("button", "thumb-delete", "×");
+      remove.type = "button";
+      remove.setAttribute("aria-label", "删除第 " + (index + 1) + " 张图片");
+      remove.addEventListener("click", function () { deleteImage(image); });
+      item.appendChild(remove);
+      grid.appendChild(item);
+    });
+    setText($("#image-count"), images.length ? images.length + "/" + IMAGES_MAX : "");
+    $("#btn-add-image").hidden = images.length >= IMAGES_MAX;
+  }
+
+  function deleteImage(image) {
+    confirmDialog("删除这张图片吗？删除后无法恢复。", "删除").then(function (confirmed) {
+      if (!confirmed) { return null; }
+      return api("DELETE", "./" + image.url).then(function () {
+        showToast("图片已删除", "ok", "#image-feedback");
+        return refreshDetailParts();
+      }).catch(fail);
+    });
+  }
+
+  /* 手机照片常有好几 MB：缩到长边 2048 像素、转成 JPEG 再上传，顺便去掉位置等 EXIF 信息。 */
+  function compressImage(file) {
+    var LIMIT = 2048;
+    if (file.type === "image/gif" || typeof createImageBitmap !== "function") { return Promise.resolve(file); }
+    return createImageBitmap(file).then(function (bitmap) {
+      var scale = Math.min(1, LIMIT / Math.max(bitmap.width, bitmap.height));
+      var canvas = document.createElement("canvas");
+      canvas.width = Math.max(1, Math.round(bitmap.width * scale));
+      canvas.height = Math.max(1, Math.round(bitmap.height * scale));
+      var context = canvas.getContext("2d");
+      context.fillStyle = "#fff";            // 透明 PNG 转 JPEG 时用白底
+      context.fillRect(0, 0, canvas.width, canvas.height);
+      context.drawImage(bitmap, 0, 0, canvas.width, canvas.height);
+      if (bitmap.close) { bitmap.close(); }
+      return new Promise(function (resolve) {
+        canvas.toBlob(function (blob) { resolve(blob && blob.size < file.size ? blob : file); }, "image/jpeg", 0.85);
+      });
+    }).catch(function () { return file; });   // 浏览器解不开（如部分 HEIC）就原样上传，由服务器判断
+  }
+
+  function uploadImages() {
+    var input = $("#image-input");
+    var files = Array.prototype.slice.call(input.files || []);
+    input.value = "";
+    var todo = state.current;
+    if (!todo || !files.length) { return; }
+    var room = IMAGES_MAX - (todo.images || []).length;
+    if (files.length > room) {
+      showToast("每个任务最多 " + IMAGES_MAX + " 张图片，这次只上传前 " + room + " 张", "warn", "#image-feedback");
+      files = files.slice(0, room);
+    }
+    var button = $("#btn-add-image");
+    setBusy(button, true, "正在上传…");
+    var uploaded = 0;
+    files.reduce(function (chain, file) {
+      return chain.then(function () {
+        return compressImage(file).then(function (blob) {
+          return api("POST", "./api/todos/" + todo.id + "/images", blob);
+        }).then(function () { uploaded += 1; });
+      });
+    }, Promise.resolve()).then(function () {
+      showToast("已添加 " + uploaded + " 张图片", "ok", "#image-feedback");
+    }).catch(function (error) {
+      if (error.status !== 401) {
+        showToast((uploaded ? "已上传 " + uploaded + " 张；" : "") + (error.message || "图片上传失败"), "error", "#image-feedback");
+      }
+    }).then(function () {
+      setBusy(button, false);
+      return refreshDetailParts();
+    });
+  }
+
+  function openLightbox(index) {
+    var images = (state.current && state.current.images) || [];
+    if (!images.length) { return; }
+    index = (index + images.length) % images.length;
+    if (!state.lightbox) { state.lightbox = { focus: document.activeElement }; }
+    state.lightbox.index = index;
+    // 图片节点按需创建：页面里不放没有地址的 <img>。
+    var frame = $("#lightbox-frame");
+    frame.replaceChildren();
+    var img = el("img");
+    img.id = "lightbox-image";
+    img.setAttribute("src", "./" + images[index].url);
+    img.setAttribute("alt", "第 " + (index + 1) + " 张图片");
+    frame.appendChild(img);
+    setText($("#lightbox-index"), (index + 1) + " / " + images.length);
+    $("#lightbox-prev").hidden = $("#lightbox-next").hidden = images.length < 2;
+    $("#lightbox").hidden = false;
+    document.body.classList.add("has-modal");
+    $("#lightbox-close").focus();
+  }
+
+  function closeLightbox() {
+    if (!state.lightbox) { return; }
+    var focus = state.lightbox.focus;
+    state.lightbox = null;
+    $("#lightbox").hidden = true;
+    $("#lightbox-frame").replaceChildren();
+    document.body.classList.remove("has-modal");
+    if (focus && focus.isConnected) { focus.focus(); }
   }
 
   // ------------------------------------------------------------ 新建任务
@@ -1750,16 +2177,19 @@
     var button = $("#create-submit");
     if (button.disabled) { return; }
     setBusy(button, true, "添加中…");
-    api("POST", "./api/todos", {
-      title: title,
-      details: $("#new-details").value || null,
-      priority: Number($("#new-priority").value),
-      due_at: fromLocalInput($("#new-due").value),
-      remind_at: fromLocalInput($("#new-remind").value),
-      list_id: Number($("#new-list").value) || null
-    }).then(function (todo) {
+    var payload = timeFields("new");
+    payload.title = title;
+    payload.details = $("#new-details").value || null;
+    payload.priority = Number($("#new-priority").value);
+    payload.list_id = Number($("#new-list").value) || null;
+    api("POST", "./api/todos", payload).then(function (todo) {
       $("#create-form").reset();
       $("#new-priority").value = "2";
+      $("#new-early").value = "";
+      $("#new-repeat").value = "";
+      $("#new-flagged").checked = false;
+      $("#new-urgent").checked = false;
+      setTags("new-tags", []);
       syncComposerList();
       setMdMode("new-details", false);
       refreshPickers();
@@ -1804,13 +2234,28 @@
     $("#d-status").value = todo.status || "open";
     $("#d-priority").value = String(todo.priority === undefined ? 2 : todo.priority);
     fillListSelect($("#d-list"), (listOf(todo) || {}).id);
+    $("#d-list-field").hidden = state.lists.length < 2 || !!todo.parent_id;
     $("#d-due").value = toLocalInput(todo.due_at);
-    $("#d-remind").value = toLocalInput(todo.remind_at);
+    var early = earlyMinutes(todo);
+    setChoice($("#d-early"), early, early ? "提前 " + durationLabel(Number(early)) : "");
+    setChoice($("#d-repeat"), todo.repeat || "", "自定义重复");
+    $("#d-flagged").checked = !!todo.flagged;
+    $("#d-urgent").checked = !!todo.urgent;
+    setTags("d-tags", todo.tags || []);
+    var parentLink = $("#d-parent");
+    parentLink.hidden = !todo.parent;
+    if (todo.parent) {
+      parentLink.href = "#/todos/" + todo.parent.id;
+      setText(parentLink, "↑ 上级任务：" + todo.parent.title);
+    }
+    renderSubtasks(todo);
+    renderImages(todo);
+    renderAlertState(todo);
 
     var meta = [];
     meta.push("创建于 " + formatTime(todo.created_at));
     meta.push("最后更新 " + formatTime(todo.updated_at));
-    meta.push("提醒：" + (todo.reminder_sent ? "已发送" : (todo.remind_at ? "待发送" : "未设置")));
+    meta.push(alertSummary(todo));
     if (todo.warnings && todo.warnings.length) { meta.push(todo.warnings.join("；")); }
     setText($("#d-meta"), meta.join(" · "));
 
@@ -1856,21 +2301,19 @@
     var button = $("#d-save");
     if (button.disabled) { return; }
     setBusy(button, true, "正在保存…");
-    var changes = {
-      title: title,
-      details: $("#d-details").value || null,
-      status: $("#d-status").value,
-      priority: Number($("#d-priority").value),
-      due_at: fromLocalInput($("#d-due").value),
-      remind_at: fromLocalInput($("#d-remind").value)
-    };
+    var changes = timeFields("d");
+    changes.title = title;
+    changes.details = $("#d-details").value || null;
+    changes.status = $("#d-status").value;
+    changes.priority = Number($("#d-priority").value);
     // 列表还没加载时选择框是空的：这时不改所属列表，否则任务会被移回默认列表。
     if (Number($("#d-list").value)) { changes.list_id = Number($("#d-list").value); }
     api("PUT", "./api/todos/" + todo.id, changes).then(function (updated) {
       state.current = updated;
       renderDetail(updated);
       var warnings = updated.warnings && updated.warnings.length ? "（" + updated.warnings.join("；") + "）" : "";
-      showToast("已保存" + warnings, warnings ? "warn" : "ok", "#detail-feedback");
+      var repeated = updated.repeated ? "，已完成一次，下次：" + friendlyTime(updated.repeated.to) : "";
+      showToast("已保存" + repeated + warnings, warnings ? "warn" : "ok", "#detail-feedback");
       return loadTodos();
     }).catch(function (error) {
       if (error.status !== 401) { showToast(error.message || "保存失败，请重试", "error", "#detail-feedback"); }
@@ -2630,13 +3073,27 @@
     });
     $("#btn-detail-delete").addEventListener("click", function () {
       if (state.current) {
-        deleteTodo(state.current.id, state.current.title);
+        deleteTodo(state.current.id, state.current.title, state.current.subtask_total);
       } else {
         showToast("任务不存在或已被删除，请返回列表重新打开", "error");
       }
     });
     $("#btn-download-ics").addEventListener("click", downloadIcs);
     $("#note-form").addEventListener("submit", addNote);
+    $("#subtask-form").addEventListener("submit", addSubtask);
+    $("#btn-add-image").addEventListener("click", function () { $("#image-input").click(); });
+    $("#image-input").addEventListener("change", uploadImages);
+    $("#btn-stop-alerts").addEventListener("click", stopAlerts);
+    ["new-urgent", "d-urgent"].forEach(function (id) {
+      $("#" + id).addEventListener("change", refreshPickers);
+    });
+    $("#tag-filter-clear").addEventListener("click", function () { selectTag(""); $("#list-heading").focus(); });
+    $("#lightbox-close").addEventListener("click", closeLightbox);
+    $("#lightbox-prev").addEventListener("click", function () { openLightbox(state.lightbox.index - 1); });
+    $("#lightbox-next").addEventListener("click", function () { openLightbox(state.lightbox.index + 1); });
+    $("#lightbox").addEventListener("click", function (event) {
+      if (event.target === $("#lightbox")) { closeLightbox(); }
+    });
 
     $("#confirm-cancel").addEventListener("click", function () { closeConfirm(false); });
     $("#confirm-ok").addEventListener("click", function () { closeConfirm(true); });
@@ -2644,6 +3101,12 @@
       if (event.target === $("#confirm")) { closeConfirm(false); }
     });
     document.addEventListener("keydown", function (event) {
+      if (state.lightbox) {
+        if (event.key === "Escape") { closeLightbox(); }
+        if (event.key === "ArrowLeft") { openLightbox(state.lightbox.index - 1); }
+        if (event.key === "ArrowRight") { openLightbox(state.lightbox.index + 1); }
+        return;
+      }
       if (event.key === "Escape" && openPicker) { closePicker(true); return; }
       if (event.key === "Escape" && !$("#account-panel").hidden) { closeAccount(true); }
       if ($("#confirm").hidden) { return; }
@@ -2676,6 +3139,7 @@
       if (savedList && savedList !== "all" && /^\d+$/.test(savedList)) { state.listFilter = Number(savedList); }
     } catch (ignore) { /* 默认显示全部 */ }
     initPickers();
+    initTags();
     initToolbars();
     bindEvents();
     setText($("#today-date"), new Date().toLocaleDateString("zh-CN", { month: "long", day: "numeric", weekday: "long" }));

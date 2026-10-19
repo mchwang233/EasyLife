@@ -564,6 +564,13 @@ function titleButton(index) {
 
 function countRequests(path) { return requests.filter(request => request.url.split("?")[0] === path).length; }
 function fillAuth() { byId.get("auth-email").value = "user@example.com"; byId.get("auth-password").value = "correct-horse-battery"; }
+/* UTC "YYYY-MM-DD HH:MM:SS" -> 本地 "YYYY-MM-DDTHH:MM"，与页面里的换算一致。 */
+function toLocal(value) {
+  const date = new Date(value.replace(" ", "T") + "Z");
+  const pad = n => String(n).padStart(2, "0");
+  return date.getFullYear() + "-" + pad(date.getMonth() + 1) + "-" + pad(date.getDate()) + "T" + pad(date.getHours()) + ":" + pad(date.getMinutes());
+}
+
 function clickFilter(status) {
   const chip = doc.querySelector('[data-status="' + status + '"]');
   byId.get("filters").dispatch("click", { target: chip });
@@ -670,7 +677,8 @@ async function uiFlow() {
   byId.get("btn-new").dispatch("click");
   check("首屏新建入口聚焦标题", doc.activeElement === byId.get("new-title"));
   byId.get("create-options-toggle").dispatch("click");
-  check("展开保留四个可选字段", !byId.get("create-options").hidden && ["new-details", "new-priority", "new-due", "new-remind"].every(id => byId.get(id).closest("#create-options")) && byId.get("create-options-toggle").getAttribute("aria-expanded") === "true");
+  check("展开保留可选字段", !byId.get("create-options").hidden && ["new-details", "new-priority", "new-due", "new-early", "new-repeat", "new-flagged", "new-urgent", "new-tags-entry"].every(id => byId.get(id).closest("#create-options")) && byId.get("create-options-toggle").getAttribute("aria-expanded") === "true");
+  check("提前提醒和重复在设置时间前隐藏", byId.get("new-time-options").hidden);
   byId.get("new-details").value = "折叠后保留的草稿";
   byId.get("create-options-toggle").dispatch("click");
   check("收起不丢失已填内容", byId.get("new-details").value === "折叠后保留的草稿");
@@ -697,9 +705,9 @@ async function uiFlow() {
   check("顶部重发携带CSRF", requests.some(request => request.url === "/api/resend-verification" && request.headers["X-CSRF-Token"] === "csrf-token-1"));
   byId.get("new-title").value = "<img src=x onerror=alert(1)>";
   byId.get("new-priority").value = "3"; byId.get("new-details").value = "提醒测试";
-  byId.get("new-due").value = "2026-10-20T09:30"; byId.get("new-remind").value = "2026-10-20T09:00";
+  byId.get("new-due").value = "2026-10-20T09:30"; byId.get("new-early").value = "30";
   createFailure = true; byId.get("create-form").dispatch("submit"); await settle(6);
-  check("新建失败保留全部输入并提供行内错误", byId.get("new-title").value.includes("<img") && byId.get("new-priority").value === "3" && byId.get("new-due").value && byId.get("new-remind").value && byId.get("toast").closest("#create-feedback") && !byId.get("create-submit").disabled);
+  check("新建失败保留全部输入并提供行内错误", byId.get("new-title").value.includes("<img") && byId.get("new-priority").value === "3" && byId.get("new-due").value && byId.get("new-early").value === "30" && byId.get("toast").closest("#create-feedback") && !byId.get("create-submit").disabled);
   createFailure = false;
   byId.get("create-options-toggle").dispatch("click");
   const createsBefore = requests.filter(r => r.url === "/api/todos" && r.method === "POST").length;
@@ -760,6 +768,59 @@ async function uiFlow() {
   check("筛选空状态提供返回全部入口", !byId.get("empty-all").hidden);
   byId.get("empty-all").dispatch("click"); await settle(6);
   check("返回全部重置筛选和按下状态", doc.querySelector('[data-status="all"]').getAttribute("aria-pressed") === "true" && byId.get("empty-all").hidden);
+
+  /* 旗标、紧急、重复、标签、子任务、图片 */
+  todos = [
+    Object.assign({}, template, { id: 21, title: "搬家", flagged: true, urgent: true, due_at: utc(1, 9), repeat: "FREQ=WEEKLY",
+      tags: ["家里"], subtask_total: 2, subtask_done: 1, image_count: 1,
+      subtasks: [{ id: 22, title: "打包", status: "open", parent_id: 21 }, { id: 23, title: "退租", status: "done", parent_id: 21 }],
+      images: [{ id: 5, url: "api/images/5", mime: "image/jpeg" }] }),
+    Object.assign({}, template, { id: 22, title: "打包", parent_id: 21, tags: [] }),
+    Object.assign({}, template, { id: 24, title: "买菜", tags: ["家里", "日常"] })
+  ];
+  clickFilter("all"); await settle(8);
+  const featureText = textOf(byId.get("todo-list"));
+  check("列表显示旗标、紧急、重复、子任务、图片和标签", ["⚑", "紧急", "↻ 每周", "子任务 1/2", "图片 1", "#家里"].every(text => featureText.includes(text)), featureText);
+  check("子任务排在上级任务下面并缩进", textOf(todoNodes()[0]).includes("搬家") && textOf(todoNodes()[1]).includes("打包") && todoNodes()[1].classList.contains("is-subtask"));
+  clickFilter("flagged"); await settle(8);
+  check("旗标筛选只显示标了旗标的任务", todoNodes().length === 1 && textOf(byId.get("todo-list")).includes("搬家"));
+  clickFilter("all"); await settle(8);
+  byId.get("todo-list").querySelectorAll(".tag-link").filter(node => node.textContent === "#日常")[0].dispatch("click");
+  check("点标签只看这个标签", todoNodes().length === 1 && textOf(byId.get("todo-list")).includes("买菜") && !byId.get("tag-filter").hidden);
+  byId.get("tag-filter-clear").dispatch("click");
+  check("可以清除标签筛选", todoNodes().length === 3 && byId.get("tag-filter").hidden);
+
+  byId.get("new-title").value = "周会"; byId.get("new-due").value = "2026-10-20T10:00";
+  byId.get("new-early").value = "15"; byId.get("new-repeat").value = "FREQ=WEEKLY";
+  byId.get("new-flagged").checked = true; byId.get("new-urgent").checked = true;
+  const tagEntry = byId.get("new-tags-entry");
+  tagEntry.value = "#工作"; tagEntry.dispatch("keydown", { key: "Enter" });
+  check("回车把文字变成标签", byId.get("new-tags-list").childNodes.length === 1 && tagEntry.value === "");
+  tagEntry.value = "开会"; tagEntry.dispatch("keydown", { key: "Enter", isComposing: true });
+  check("输入法选字时回车不加标签", byId.get("new-tags-list").childNodes.length === 1 && tagEntry.value === "开会");
+  byId.get("create-form").dispatch("submit"); await settle(8);
+  const createdTask = requests.filter(r => r.method === "POST" && r.url === "/api/todos").slice(-1)[0].body;
+  const dueLocal = new Date("2026-10-20T10:00");
+  const isoUtc = date => date.toISOString().slice(0, 19).replace("T", " ");
+  check("新建任务发送提前提醒、重复、标记和标签",
+    createdTask.due_at === isoUtc(dueLocal) && createdTask.remind_at === isoUtc(new Date(dueLocal.getTime() - 15 * 60000)) &&
+    createdTask.repeat === "FREQ=WEEKLY" && createdTask.flagged === true && createdTask.urgent === true &&
+    JSON.stringify(createdTask.tags) === JSON.stringify(["工作", "开会"]), JSON.stringify(createdTask));
+  check("新建后清空标签、标记和提前提醒", byId.get("new-tags-list").childNodes.length === 0 && !byId.get("new-flagged").checked && byId.get("new-early").value === "" && byId.get("new-repeat").value === "");
+
+  locationStub.hash = "#/todos/21"; await settle(10);
+  check("详情显示子任务和图片", byId.get("subtask-list").childNodes.length === 2 && byId.get("image-grid").childNodes.length === 1 && byId.get("subtask-count").textContent === "1/2" && !byId.get("subtasks").hidden);
+  check("详情回填旗标、紧急、重复和标签", byId.get("d-flagged").checked && byId.get("d-urgent").checked && byId.get("d-repeat").value === "FREQ=WEEKLY" && byId.get("d-tags-list").childNodes.length === 1 && !byId.get("d-time-options").hidden);
+  byId.get("subtask-title").value = "找搬家公司"; byId.get("subtask-form").dispatch("submit"); await settle(8);
+  check("添加子任务带上上级任务", requests.some(r => r.method === "POST" && r.url === "/api/todos" && r.body.parent_id === 21 && r.body.title === "找搬家公司") && byId.get("subtask-title").value === "");
+  byId.get("image-grid").querySelector(".thumb").dispatch("click");
+  check("点缩略图打开大图", !byId.get("lightbox").hidden && byId.get("lightbox-frame").childNodes[0].getAttribute("src") === "./api/images/5");
+  documentListeners.keydown.forEach(fn => fn({ key: "Escape", preventDefault() {} }));
+  check("Escape 关闭大图", byId.get("lightbox").hidden);
+  byId.get("d-early").value = "60"; byId.get("detail-form").dispatch("submit"); await settle(8);
+  const savedTask = requests.filter(r => r.method === "PUT" && r.url === "/api/todos/21").slice(-1)[0].body;
+  check("详情保存提前提醒和标签", savedTask.remind_at === isoUtc(new Date(new Date(toLocal(savedTask.due_at)).getTime() - 3600000)) && JSON.stringify(savedTask.tags) === JSON.stringify(["家里"]), JSON.stringify(savedTask));
+  locationStub.hash = "#/todos"; await settle(8);
   byId.get("btn-logout").dispatch("click"); await settle(8);
   check("退出后账户导航隐藏", view("auth") && byId.get("account-nav").hidden);
   const toggle = doc.querySelector('[data-password="auth-password"]'); toggle.dispatch("click");

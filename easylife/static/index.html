@@ -198,15 +198,54 @@
             </select>
             <div class="seg" data-for="new-priority"></div>
           </div>
-          <div class="el-field">
-            <label for="new-remind">提醒时间</label>
-            <input id="new-remind" type="datetime-local">
-            <div class="dt" data-for="new-remind"></div>
-          </div>
-          <div class="el-field">
-            <label for="new-due">截止时间</label>
+          <div class="el-field span-all">
+            <label for="new-due">提醒时间</label>
             <input id="new-due" type="datetime-local">
             <div class="dt" data-for="new-due"></div>
+          </div>
+          <div id="new-time-options" class="el-field span-all time-options" hidden>
+            <label for="new-early">提前提醒</label>
+            <select id="new-early">
+              <option value="">不提前</option>
+              <option value="5">5 分钟</option>
+              <option value="15">15 分钟</option>
+              <option value="30">30 分钟</option>
+              <option value="60">1 小时</option>
+              <option value="120">2 小时</option>
+              <option value="1440">1 天</option>
+              <option value="2880">2 天</option>
+              <option value="10080">1 周</option>
+            </select>
+            <div class="seg seg-wrap" data-for="new-early"></div>
+            <label for="new-repeat">重复</label>
+            <select id="new-repeat">
+              <option value="">永不</option>
+              <option value="FREQ=DAILY">每天</option>
+              <option value="FREQ=WEEKLY;BYDAY=MO,TU,WE,TH,FR">工作日</option>
+              <option value="FREQ=WEEKLY;BYDAY=SA,SU">周末</option>
+              <option value="FREQ=WEEKLY">每周</option>
+              <option value="FREQ=WEEKLY;INTERVAL=2">每两周</option>
+              <option value="FREQ=MONTHLY">每月</option>
+              <option value="FREQ=MONTHLY;INTERVAL=3">每 3 个月</option>
+              <option value="FREQ=MONTHLY;INTERVAL=6">每 6 个月</option>
+              <option value="FREQ=YEARLY">每年</option>
+            </select>
+            <div class="seg seg-wrap" data-for="new-repeat"></div>
+          </div>
+          <div class="el-field span-all">
+            <span class="field-label">标记</span>
+            <div class="toggle-row">
+              <label class="toggle-chip flag-toggle"><input type="checkbox" id="new-flagged" aria-label="旗标"><span>旗标</span></label>
+              <label class="toggle-chip urgent-toggle"><input type="checkbox" id="new-urgent" aria-label="紧急"><span>紧急</span></label>
+            </div>
+            <p id="new-urgent-hint" class="muted small" hidden>紧急：到提醒时间后每 10 分钟再提醒一次，直到完成。</p>
+          </div>
+          <div class="el-field span-all">
+            <label for="new-tags-entry">标签</label>
+            <div class="tags-field" data-tags="new-tags">
+              <span id="new-tags-list" class="tag-list"></span>
+              <input id="new-tags-entry" type="text" maxlength="30" autocomplete="off" placeholder="输入标签后按回车">
+            </div>
           </div>
         </div>
 
@@ -236,6 +275,7 @@
           <button type="button" class="chip is-active" data-status="all" aria-pressed="true">全部</button>
           <button type="button" class="chip" data-status="today" aria-pressed="false">今天</button>
           <button type="button" class="chip" data-status="upcoming" aria-pressed="false">即将到期</button>
+          <button type="button" class="chip" data-status="flagged" aria-pressed="false">旗标</button>
           <button type="button" class="chip" data-status="open" aria-pressed="false">待办</button>
           <button type="button" class="chip" data-status="doing" aria-pressed="false">进行中</button>
           <button type="button" class="chip" data-status="done" aria-pressed="false">已完成</button>
@@ -243,7 +283,11 @@
         </div>
       </div>
 
-      <p id="filter-hint" class="muted small">所有未归档任务，按优先级与截止时间排列。</p>
+      <div id="tag-filter" class="tag-filter" hidden>
+        <span id="tag-filter-name" class="tag-chip"></span>
+        <button type="button" id="tag-filter-clear" class="btn ghost">清除标签筛选</button>
+      </div>
+      <p id="filter-hint" class="muted small">所有未归档任务，按优先级与时间排列。</p>
       <p id="list-loading" class="loading-state" role="status" hidden>正在加载任务…</p>
       <div id="list-error" class="error-state" hidden>
         <p id="list-error-message" role="alert"></p>
@@ -400,6 +444,7 @@
     <div class="detail-grid">
     <section class="card detail-card">
       <h1 id="detail-heading" class="sr-only" tabindex="-1">任务详情</h1>
+      <a id="d-parent" class="parent-link" href="#/todos" hidden></a>
       <form id="detail-form">
         <label for="d-title" class="sr-only">标题</label>
         <input id="d-title" class="title-input" type="text" maxlength="200" required>
@@ -426,7 +471,7 @@
             </select>
             <div class="seg" data-for="d-status"></div>
           </div>
-          <div class="el-field span-all list-field" hidden>
+          <div id="d-list-field" class="el-field span-all list-field" hidden>
             <label for="d-list">列表</label>
             <select id="d-list"></select>
             <div class="seg list-seg" data-list-for="d-list"></div>
@@ -441,18 +486,61 @@
             </select>
             <div class="seg" data-for="d-priority"></div>
           </div>
-          <div class="el-field">
-            <label for="d-remind">提醒时间</label>
-            <input id="d-remind" type="datetime-local">
-            <div class="dt" data-for="d-remind"></div>
-          </div>
-          <div class="el-field">
-            <label for="d-due">截止时间</label>
+          <div class="el-field span-all">
+            <label for="d-due">提醒时间</label>
             <input id="d-due" type="datetime-local">
             <div class="dt" data-for="d-due"></div>
           </div>
+          <div id="d-time-options" class="el-field span-all time-options" hidden>
+            <label for="d-early">提前提醒</label>
+            <select id="d-early">
+              <option value="">不提前</option>
+              <option value="5">5 分钟</option>
+              <option value="15">15 分钟</option>
+              <option value="30">30 分钟</option>
+              <option value="60">1 小时</option>
+              <option value="120">2 小时</option>
+              <option value="1440">1 天</option>
+              <option value="2880">2 天</option>
+              <option value="10080">1 周</option>
+            </select>
+            <div class="seg seg-wrap" data-for="d-early"></div>
+            <label for="d-repeat">重复</label>
+            <select id="d-repeat">
+              <option value="">永不</option>
+              <option value="FREQ=DAILY">每天</option>
+              <option value="FREQ=WEEKLY;BYDAY=MO,TU,WE,TH,FR">工作日</option>
+              <option value="FREQ=WEEKLY;BYDAY=SA,SU">周末</option>
+              <option value="FREQ=WEEKLY">每周</option>
+              <option value="FREQ=WEEKLY;INTERVAL=2">每两周</option>
+              <option value="FREQ=MONTHLY">每月</option>
+              <option value="FREQ=MONTHLY;INTERVAL=3">每 3 个月</option>
+              <option value="FREQ=MONTHLY;INTERVAL=6">每 6 个月</option>
+              <option value="FREQ=YEARLY">每年</option>
+            </select>
+            <div class="seg seg-wrap" data-for="d-repeat"></div>
+          </div>
+          <div class="el-field span-all">
+            <span class="field-label">标记</span>
+            <div class="toggle-row">
+              <label class="toggle-chip flag-toggle"><input type="checkbox" id="d-flagged" aria-label="旗标"><span>旗标</span></label>
+              <label class="toggle-chip urgent-toggle"><input type="checkbox" id="d-urgent" aria-label="紧急"><span>紧急</span></label>
+            </div>
+            <p id="d-urgent-hint" class="muted small" hidden>紧急：到提醒时间后每 10 分钟再提醒一次，直到完成。</p>
+          </div>
+          <div class="el-field span-all">
+            <label for="d-tags-entry">标签</label>
+            <div class="tags-field" data-tags="d-tags">
+              <span id="d-tags-list" class="tag-list"></span>
+              <input id="d-tags-entry" type="text" maxlength="30" autocomplete="off" placeholder="输入标签后按回车">
+            </div>
+          </div>
         </div>
 
+        <div id="d-nag" class="nag-box" role="status" hidden>
+          <span id="d-nag-text"></span>
+          <button type="button" id="btn-stop-alerts" class="btn">停止提醒</button>
+        </div>
         <p id="d-meta" class="muted small"></p>
 
         <button type="submit" id="d-save" class="btn primary detail-save">保存修改</button>
@@ -463,6 +551,26 @@
              rel="noopener noreferrer">添加到 Google 日历</a>
         </div>
       </form>
+
+      <section id="subtasks" class="detail-section" aria-labelledby="subtasks-heading">
+        <h2 id="subtasks-heading" class="section-title">子任务 <span id="subtask-count" class="muted small"></span></h2>
+        <ul id="subtask-list" class="subtask-list"></ul>
+        <form id="subtask-form" class="subtask-form">
+          <label for="subtask-title" class="sr-only">新子任务</label>
+          <input id="subtask-title" type="text" maxlength="200" autocomplete="off" placeholder="添加子任务，按回车保存">
+          <button type="submit" id="subtask-submit" class="btn">添加</button>
+        </form>
+        <div id="subtask-feedback" class="feedback-slot"></div>
+      </section>
+
+      <section id="images" class="detail-section" aria-labelledby="images-heading">
+        <h2 id="images-heading" class="section-title">图片 <span id="image-count" class="muted small"></span></h2>
+        <ul id="image-grid" class="image-grid"></ul>
+        <label for="image-input" class="sr-only">选择图片</label>
+        <input id="image-input" class="sr-only" type="file" accept="image/*" multiple>
+        <button type="button" id="btn-add-image" class="btn">＋ 添加图片</button>
+        <div id="image-feedback" class="feedback-slot"></div>
+      </section>
     </section>
 
     <section class="card notes-card">
@@ -492,6 +600,19 @@
     <div class="row end el-row">
       <button type="button" id="confirm-cancel" class="btn ghost">取消</button>
       <button type="button" id="confirm-ok" class="btn danger">确认</button>
+    </div>
+  </div>
+</div>
+
+<!-- ------------------------------------------------ 看大图 -->
+<div id="lightbox" class="modal lightbox" hidden>
+  <div class="lightbox-box" role="dialog" aria-modal="true" aria-label="查看图片">
+    <div id="lightbox-frame" class="lightbox-frame"></div>
+    <div class="row end el-row">
+      <span id="lightbox-index" class="muted small grow"></span>
+      <button type="button" id="lightbox-prev" class="btn ghost">上一张</button>
+      <button type="button" id="lightbox-next" class="btn ghost">下一张</button>
+      <button type="button" id="lightbox-close" class="btn">关闭</button>
     </div>
   </div>
 </div>

@@ -16,7 +16,8 @@ import urllib.parse
 from email.message import EmailMessage
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
-from easylife import auth, auth_mail, caldav, calendar_ics, db, lists, mail_settings, reminders, todos
+from easylife import (auth, auth_mail, caldav, calendar_ics, db, lists, mail_settings, recurrence,
+                      reminders, todos)
 
 log = logging.getLogger("easylife")
 
@@ -87,6 +88,9 @@ def load_config(env=None):
         "require_email_verification": require_verification in ("true", "1", "yes", "on"),
         "session_ttl": int(env.get("EASYLIFE_SESSION_TTL", str(auth.DEFAULT_SESSION_TTL))),
         "remind_interval": int(env.get("EASYLIFE_REMIND_INTERVAL", "60")),
+        # Urgent tasks: minutes between repeated reminders after the due time, and how many.
+        "urgent_interval": int(env.get("EASYLIFE_URGENT_INTERVAL", "10")),
+        "urgent_max": int(env.get("EASYLIFE_URGENT_MAX", str(todos.URGENT_MAX))),
         "admin_user_ids": parse_admin_user_ids(env.get("EASYLIFE_ADMIN_USER_IDS", "")),
         # Floating / date-only times from CalDAV clients are read in this zone.
         "timezone": env.get("EASYLIFE_TIMEZONE", caldav.DEFAULT_TZ),
@@ -179,11 +183,13 @@ def _wrap(fn):
     return wrapper
 
 
-def route(pattern, auth_required=True, **methods):
+def route(pattern, auth_required=True, raw_body=False, **methods):
     # None means optional session: anonymous recovery is allowed, while a live
     # session still requires the existing session-bound CSRF token on writes.
-    return (re.compile("^" + pattern + "$"), auth_required,
-            {m: _wrap(fn) for m, fn in methods.items()})
+    wrapped = {m: _wrap(fn) for m, fn in methods.items()}
+    for fn in wrapped.values():
+        fn.raw_body = raw_body      # the body is passed as bytes (image uploads), not JSON
+    return (re.compile("^" + pattern + "$"), auth_required, wrapped)
 
 
 def _todo_id(match):
@@ -286,6 +292,19 @@ class Handler(BaseHTTPRequestHandler):
             return None
         morsel = jar.get(COOKIE_NAME)
         return morsel.value if morsel else None
+
+    def read_bytes(self, limit):
+        if self.headers.get("Transfer-Encoding"):
+            raise bad_request("不支持分块传输，请提供 Content-Length")
+        try:
+            length = int(self.headers.get("Content-Length") or 0)
+        except ValueError:
+            raise bad_request("Content-Length 无效")
+        if length < 0:
+            raise bad_request("Content-Length 无效")
+        if length > limit:
+            raise ApiError(413, "payload_too_large", "文件过大（上限 %d MB）" % (limit // 1024 // 1024))
+        return self.rfile.read(length) if length else b""
 
     def read_json(self):
         if self.headers.get("Transfer-Encoding"):
@@ -422,7 +441,10 @@ class Handler(BaseHTTPRequestHandler):
                 raise ApiError(403, "forbidden", "CSRF 校验失败")
             body = None
             if method in ("POST", "PUT", "DELETE"):
-                body = self.read_json()
+                if getattr(handler, "raw_body", False):
+                    body = self.read_bytes(todos.IMAGE_MAX_BYTES)
+                else:
+                    body = self.read_json()
                 self._body_read = True
             params = {k: v[-1] for k, v in urllib.parse.parse_qs(query).items()}
             handler(self, match=match, session=session, body=body, params=params)
@@ -650,6 +672,25 @@ class Handler(BaseHTTPRequestHandler):
         self.send_json(200, _found(todos.update_todo(self.conn(), session["id"], todo_id, body,
                                                      self.cfg["base_url"])))
 
+    def api_stop_alerts(self, session, match, **_):
+        self.send_json(200, _found(todos.stop_alerts(self.conn(), session["id"], _todo_id(match),
+                                                     self.cfg["base_url"])))
+
+    def api_add_image(self, session, match, body, **_):
+        image = todos.add_image(self.conn(), session["id"], _todo_id(match), body or b"")
+        self.send_json(201, _found(image))
+
+    def api_get_image(self, session, match, **_):
+        mime, data = _found(todos.get_image(self.conn(), session["id"], _todo_id(match)))
+        # Image ids are never reused, so the browser may keep its copy.
+        self.send(200, data, mime, {"Cache-Control": "private, max-age=31536000, immutable",
+                                    "Content-Disposition": "inline"})
+
+    def api_delete_image(self, session, match, **_):
+        if not todos.delete_image(self.conn(), session["id"], _todo_id(match)):
+            raise ApiError(404, *NOT_FOUND)
+        self.send_json(200, {"ok": True})
+
     def api_todo_ics(self, session, match, **_):
         """Single-todo .ics download (design §3.8)."""
         todo_id = _todo_id(match)
@@ -712,6 +753,9 @@ ROUTES = [
           DELETE=Handler.api_delete_todo),
     route(r"/api/todos/(\d{1,20})/ics", GET=Handler.api_todo_ics),
     route(r"/api/todos/(\d{1,20})/notes", GET=Handler.api_list_notes, POST=Handler.api_add_note),
+    route(r"/api/todos/(\d{1,20})/stop-alerts", POST=Handler.api_stop_alerts),
+    route(r"/api/todos/(\d{1,20})/images", raw_body=True, POST=Handler.api_add_image),
+    route(r"/api/images/(\d{1,20})", GET=Handler.api_get_image, DELETE=Handler.api_delete_image),
 ]
 
 # ---------------------------------------------------------------- server
@@ -723,6 +767,9 @@ class EasyLifeServer(ThreadingHTTPServer):
     def __init__(self, cfg):
         validate_config(cfg)
         self.cfg = cfg
+        recurrence.set_zone(caldav.default_zone(cfg))
+        todos.URGENT_INTERVAL = max(1, cfg.get("urgent_interval", 10)) * 60
+        todos.URGENT_MAX = max(1, cfg.get("urgent_max", todos.URGENT_MAX))
         self.limiter = auth.LoginRateLimiter()
         # Separate counters: a phone retrying an old sync password must not lock web login.
         self.dav_limiter = auth.LoginRateLimiter(email_limit=10, ip_limit=30)
