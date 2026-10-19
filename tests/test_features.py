@@ -140,9 +140,10 @@ class ReminderModelTests(DbTestCase):
         now = db.now_utc()
         rows = [  # (due_at, remind_at, reminder_sent)
             (db.now_utc(86400), db.now_utc(3600), 0),        # early alert stays
-            (db.now_utc(86400), db.now_utc(90000), 0),       # after the due time -> at due time
+            (db.now_utc(86400), db.now_utc(90000), 0),       # pending, after the due time -> its time
             (db.now_utc(-3600), db.now_utc(-3600), 1),       # sent, at the due time
             (None, db.now_utc(7200), 0),                     # no due time -> becomes the due time
+            (db.now_utc(-3600), db.now_utc(86400), 0),       # pending reminder after a passed due
         ]
         ids = []
         for due, remind, sent in rows:
@@ -154,9 +155,10 @@ class ReminderModelTests(DbTestCase):
         get = lambda i: tuple(self.row(i)[k] for k in ("due_at", "remind_at", "due_alert_sent",  # noqa: E731
                                                        "reminder_sent"))
         self.assertEqual(get(ids[0]), (rows[0][0], rows[0][1], 0, 0))
-        self.assertEqual(get(ids[1]), (rows[1][0], None, 0, 0))
+        self.assertEqual(get(ids[1]), (rows[1][1], None, 0, 0))
         self.assertEqual(get(ids[2]), (rows[2][0], None, 1, 0))
         self.assertEqual(get(ids[3]), (rows[3][1], None, 0, 0))
+        self.assertEqual(get(ids[4]), (rows[4][1], None, 0, 0))
 
 
 class RepeatTests(DbTestCase):

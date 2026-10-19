@@ -265,14 +265,18 @@ def migrate_email_verification(conn):
 def migrate_due_alerts(conn):
     """Move existing reminders to the iPhone model without mailing anything twice.
 
-    A reminder without a due time becomes the due time; a reminder at or after the due
-    time is replaced by the alert at the due time; alerts that already passed or were
-    already sent are marked as sent.
+    A reminder without a due time becomes the due time, and so does a pending future
+    reminder set after the due time (the reminder is what the user asked to get); any other
+    reminder at or after the due time is replaced by the alert at the due time; alerts that
+    already passed or were already sent are marked as sent.
     """
     now = now_utc()
     conn.execute("UPDATE todos SET due_at = remind_at, due_alert_sent = reminder_sent, "
                  "remind_at = NULL, reminder_sent = 0 "
                  "WHERE due_at IS NULL AND remind_at IS NOT NULL")
+    conn.execute("UPDATE todos SET due_at = remind_at, remind_at = NULL, reminder_sent = 0 "
+                 "WHERE remind_at > due_at AND reminder_sent = 0 AND remind_at > ? "
+                 "AND status IN ('open', 'doing')", (now,))
     conn.execute("UPDATE todos SET due_alert_sent = 1 WHERE due_at IS NOT NULL AND "
                  "(due_at <= ? OR (reminder_sent = 1 AND remind_at >= due_at))", (now,))
     conn.execute("UPDATE todos SET remind_at = NULL, reminder_sent = 0 "
