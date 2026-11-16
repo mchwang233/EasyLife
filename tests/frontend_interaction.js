@@ -1220,6 +1220,11 @@ async function adminMailRaceFlow() {
     check("再次进入详情", view("detail") && currentHash === "#/todos/2", "hash=" + currentHash);
     byId.get("d-title").value = "尚未保存的标题草稿";
     byId.get("note-content").value = "记得买两盒";
+    byId.get("note-content-view").dispatch("click");
+    check("笔记切到预览后渲染 Markdown", byId.get("note-content").hidden && !byId.get("note-content-preview").hidden
+      && textOf(byId.get("note-content-preview")).includes("买两盒")
+      && byId.get("note-content-view").getAttribute("aria-pressed") === "true",
+      textOf(byId.get("note-content-preview")));
     byId.get("note-form").dispatch("submit");
     await settle(10);
 
@@ -1232,6 +1237,8 @@ async function adminMailRaceFlow() {
     }));
     check("新增笔记后仍停留在详情", view("detail"), "hash=" + currentHash);
     check("笔记输入框已清空", byId.get("note-content").value === "", byId.get("note-content").value);
+    check("添加笔记后回到编辑模式", !byId.get("note-content").hidden && byId.get("note-content-preview").hidden
+      && byId.get("note-content-edit").getAttribute("aria-pressed") === "true");
     check("新增笔记保留未保存编辑并聚焦输入框", byId.get("d-title").value === "尚未保存的标题草稿" && doc.activeElement === byId.get("note-content"));
 
     /* 7. 详情页保存（没有 401）应当成功并发请求 */

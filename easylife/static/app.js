@@ -1198,7 +1198,7 @@
     area.style.height = (area.scrollHeight + 2) + "px";
   }
 
-  /* 「编辑 / 预览」切换：任务详情（#d-details）与首页新建的详情（#new-details）共用。 */
+  /* 「编辑 / 预览」切换：任务详情（#d-details）、首页新建的详情（#new-details）与进展笔记草稿（#note-content）共用。 */
   function setMdMode(id, preview) {
     var area = $("#" + id);
     var view = $("#" + id + "-preview");
@@ -2339,6 +2339,7 @@
     var content = $("#note-content").value;
     if (!content.trim()) {
       showToast("笔记内容不能为空", "error");
+      setMdMode("note-content", false);
       $("#note-content").focus();
       return;
     }
@@ -2352,7 +2353,7 @@
         state.current.notes = (state.current.notes || []).concat([note]);
         renderNotes(state.current.notes);
         $("#note-content").value = "";
-        autoGrow($("#note-content"));
+        setMdMode("note-content", false);
         showToast("已添加笔记", "ok", "#note-feedback");
         $("#note-content").focus();
       })
@@ -3067,7 +3068,7 @@
 
     $("#btn-back").addEventListener("click", function () { go("#/todos"); });
     $("#detail-form").addEventListener("submit", submitDetail);
-    ["d-details", "new-details"].forEach(function (id) {
+    ["d-details", "new-details", "note-content"].forEach(function (id) {
       $("#" + id + "-edit").addEventListener("click", function () { setMdMode(id, false); $("#" + id).focus(); });
       $("#" + id + "-view").addEventListener("click", function () { setMdMode(id, true); });
       $("#" + id + "-preview").addEventListener("click", function (event) {

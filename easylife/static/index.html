@@ -578,11 +578,18 @@
       <ol id="note-list" class="timeline"></ol>
       <p id="note-empty" class="muted empty" role="status" hidden>还没有笔记，写下第一条进展吧。</p>
 
-      <form id="note-form">
-        <label for="note-content" class="sr-only">新增笔记</label>
-        <div class="md-toolbar" data-for="note-content"></div>
+      <form id="note-form" novalidate>
+        <div class="md-label">
+          <label for="note-content">新增笔记</label>
+          <div class="md-tabs" role="group" aria-label="笔记显示方式">
+            <button type="button" id="note-content-edit" class="md-tab" aria-pressed="true">编辑</button>
+            <button type="button" id="note-content-view" class="md-tab" aria-pressed="false">预览</button>
+          </div>
+        </div>
+        <div id="note-content-toolbar" class="md-toolbar" data-for="note-content"></div>
         <textarea id="note-content" rows="3" maxlength="10000" required
                   placeholder="记录进展、阻塞或补充说明（支持 Markdown）"></textarea>
+        <div id="note-content-preview" class="md md-preview" title="点击编辑" hidden></div>
         <button type="submit" id="note-submit" class="btn primary">添加笔记</button>
         <div id="note-feedback" class="feedback-slot"></div>
       </form>
