@@ -328,12 +328,14 @@ select {
   border-radius: 50%; background: var(--pc); vertical-align: 1px;
 }
 .seg[data-for$="priority"] .seg-btn.is-active { background: var(--pb); color: var(--pc); box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--pc) 35%, transparent); }
-/* 「进行中」不能用 --primary-soft：浅色主题下它与分段底色 --surface 同色，选中态会看不出来。 */
-.seg[data-for="d-status"] .seg-btn.is-active[data-value="doing"] {
-  background: color-mix(in srgb, var(--primary) 16%, var(--card)); color: var(--primary);
-  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--primary) 45%, transparent), var(--shadow);
+/* 状态：同一种做法——浅色底 + 同色文字 + 阴影，只靠色相区分（待办保持白底）。
+   底色按比例混入 --card，浅色/深色主题下文字对比度都 ≥ 5:1，且与分段底色 --surface 区分得开。 */
+.seg[data-for="d-status"] .seg-btn.is-active[data-value="doing"] { --sc: var(--p1); --sp: 18%; }
+.seg[data-for="d-status"] .seg-btn.is-active[data-value="done"] { --sc: var(--ok); --sp: 20%; }
+.seg[data-for="d-status"] .seg-btn.is-active[data-value="archived"] { --sc: var(--muted); --sp: 22%; --st: var(--text); }
+.seg[data-for="d-status"] .seg-btn.is-active:not([data-value="open"]) {
+  background: color-mix(in srgb, var(--sc) var(--sp), var(--card)); color: var(--st, var(--sc));
 }
-.seg[data-for="d-status"] .seg-btn.is-active[data-value="done"] { background: var(--primary); color: var(--on-primary); }
 
 .dt { position: relative; display: flex; align-items: center; }
 .dt-trigger {
@@ -740,7 +742,7 @@ select {
   font-size: .6875rem; font-weight: 700; line-height: 18px;
   background: var(--surface); color: var(--muted);
 }
-.tag.status-doing { background: var(--primary-soft); color: var(--primary); }
+.tag.status-doing { background: var(--p1-bg); color: var(--p1); }
 .tag.priority-3 { background: var(--p3-bg); color: var(--p3); }
 .tag.priority-2 { background: var(--p2-bg); color: var(--p2); }
 .tag.priority-1 { background: var(--p1-bg); color: var(--p1); }
