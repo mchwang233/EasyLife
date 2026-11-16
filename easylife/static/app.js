@@ -1724,15 +1724,20 @@
       var list = dayList(days);
       text = n > 1 ? text + "的" + list : (list === "工作日" || list === "周末" ? "每个" + list : "每" + list);
     }
-    if (p.FREQ === "YEARLY" && p.BYMONTH) {
-      text += "的 " + p.BYMONTH.split(",").map(function (m) { return Number(m) + " 月"; }).join("、");
+    // 「每月 1 日」「每月最后一天」「每 2 个月的 1 日」「每年 5 月的第二个周日」：数字两侧留空格，其余紧挨着。
+    var byMonth = p.FREQ === "YEARLY" && p.BYMONTH;
+    if (byMonth) {
+      text += " " + p.BYMONTH.split(",").map(function (m) { return Number(m) + " 月"; }).join("、");
     }
+    var attach = function (tail, needDe) {
+      text += (needDe ? "的" : "") + (/^\d/.test(tail) ? " " : "") + tail;
+    };
     if (p.BYMONTHDAY) {
-      text += (p.FREQ === "YEARLY" && p.BYMONTH ? " " : "的 ") + p.BYMONTHDAY.split(",").map(function (d) {
+      attach(p.BYMONTHDAY.split(",").map(function (d) {
         return Number(d) === -1 ? "最后一天" : Number(d) < 0 ? "倒数第 " + (-Number(d)) + " 天" : Number(d) + " 日";
-      }).join("、");
+      }).join("、"), !byMonth && (n > 1 || p.FREQ === "YEARLY"));
     } else if (onText) {
-      text += "的" + onText;
+      attach(onText, byMonth || n > 1 || p.FREQ === "YEARLY");
     }
     if (p.COUNT) { text += "，还剩 " + Number(p.COUNT) + " 次"; }
     if (p.UNTIL && /^\d{8}/.test(p.UNTIL)) { text += "，至 " + p.UNTIL.slice(0, 4) + "-" + p.UNTIL.slice(4, 6) + "-" + p.UNTIL.slice(6, 8); }
