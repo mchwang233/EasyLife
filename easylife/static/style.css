@@ -655,7 +655,7 @@ select {
 .todo-list { list-style: none; margin: 0; padding: var(--space-1) 0; }
 
 .todo {
-  --title-size: .9375rem;
+  --title-size: 1rem;
   --title-lh: 1.45;
   position: relative;
   display: flex; align-items: flex-start; gap: var(--space-3);
@@ -670,12 +670,13 @@ select {
   width: 3px; border-radius: 0 3px 3px 0; background: var(--p3);
 }
 
-/* 圆形完成按钮：视觉 20px，点击区域靠外边距扩大。 */
+/* 圆形完成按钮：视觉 18px（与 16px 标题相称），点击区域靠 ::before 扩大到约 42px。 */
 .check {
+  --check-size: 18px;
   appearance: none; -webkit-appearance: none;
   flex: 0 0 auto;
   position: relative;
-  width: 20px; height: 20px; min-height: 0;
+  width: var(--check-size); height: var(--check-size); min-height: 0;
   margin: 2px 0 0; padding: 0;
   border: 1.5px solid var(--input-line);
   border-radius: 50%;
@@ -687,8 +688,8 @@ select {
   content: ""; position: absolute; inset: -12px;
 }
 .check::after {
-  content: ""; position: absolute; left: 6px; top: 2.5px;
-  width: 4px; height: 9px;
+  content: ""; position: absolute; left: 5px; top: 2px;
+  width: 4px; height: 8px;
   border: solid var(--on-primary); border-width: 0 2px 2px 0;
   transform: rotate(45deg) scale(0);
   transition: transform .12s;
@@ -706,7 +707,7 @@ select {
 .todo .check:not(:checked) { border-color: var(--pc, var(--input-line)); background: color-mix(in srgb, var(--pb, var(--card)) 60%, var(--card)); }
 .todo .check:not(:checked):hover { background: var(--pb, var(--card)); }
 /* 圆圈与标题首行中线对齐：按标题字号 × 行高算出偏移，子任务字号变化时自动跟随。 */
-.todo .check { margin-top: calc((var(--title-size) * var(--title-lh) - 20px) / 2); }
+.todo .check { margin-top: calc((var(--title-size) * var(--title-lh) - var(--check-size)) / 2); }
 
 .todo-main { flex: 1; min-width: 0; }
 .todo-title {
@@ -1023,7 +1024,7 @@ body.has-modal { overflow: hidden; }
 .flag-mark { margin-right: 6px; color: var(--warn); font-weight: 700; }
 .tag.urgent-tag { background: var(--danger-bg); color: var(--danger); }
 .todo.is-subtask { padding-left: calc(var(--space-4) + 30px); }
-.todo.is-subtask { --title-size: .875rem; }
+.todo.is-subtask { --title-size: .9375rem; }
 
 .parent-link {
   display: inline-block; margin-bottom: var(--space-2);
