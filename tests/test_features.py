@@ -193,6 +193,39 @@ class RepeatTests(DbTestCase):
         # Overdue: the next upcoming date, not one that has already passed.
         self.assertEqual(nd(old, "FREQ=DAILY", now="2026-02-05 00:00:00")[0], "2026-02-05 01:00:00")
 
+    def test_next_dates_of_custom_rules(self):
+        """Rules made by Reminders' 自定义 (all times 09:00 +08:00 = 01:00 UTC)."""
+        nd = recurrence.next_due
+        old = "2026-01-30 01:00:00"           # Friday, the last Friday of January
+        cases = {
+            "FREQ=WEEKLY;INTERVAL=2;BYDAY=MO,FR": "2026-02-09",     # skips the week after
+            "FREQ=MONTHLY;BYMONTHDAY=1,15": "2026-02-01",
+            "FREQ=MONTHLY;BYMONTHDAY=31": "2026-01-31",              # later in the same month
+            "FREQ=MONTHLY;BYMONTHDAY=-1": "2026-01-31",              # last day of the month
+            "FREQ=MONTHLY;BYDAY=2MO": "2026-02-09",                  # second Monday
+            "FREQ=MONTHLY;BYDAY=-1FR": "2026-02-27",                 # last Friday
+            "FREQ=MONTHLY;BYDAY=MO,TU,WE,TH,FR;BYSETPOS=-1": "2026-02-27",   # last weekday
+            "FREQ=MONTHLY;BYDAY=SA,SU;BYSETPOS=1": "2026-02-01",     # first weekend day of February
+            "FREQ=YEARLY;BYMONTH=3,9": "2026-03-30",
+            "FREQ=YEARLY;BYMONTH=5;BYDAY=2SU": "2026-05-10",         # Mother's Day
+            "FREQ=MONTHLY;INTERVAL=3;BYMONTHDAY=1": "2026-04-01",
+        }
+        for rule, day in cases.items():
+            with self.subTest(rule=rule):
+                self.assertEqual(nd(old, rule, now=old)[0], day + " 01:00:00")
+        # A month without the 31st is skipped; February 2026 has no 31st.
+        self.assertEqual(nd("2026-01-31 01:00:00", "FREQ=MONTHLY;BYMONTHDAY=31", now=old)[0],
+                         "2026-03-31 01:00:00")
+        # COUNT counts each date, also several in one month.
+        self.assertEqual(nd(old, "FREQ=MONTHLY;BYMONTHDAY=1,15;COUNT=3", now=old),
+                         ("2026-02-01 01:00:00", "FREQ=MONTHLY;BYMONTHDAY=1,15;COUNT=2"))
+        # A rule that never yields a date ends instead of looping.
+        self.assertIsNone(nd(old, "FREQ=YEARLY;BYMONTH=2;BYMONTHDAY=30", now=old))
+        for bad in ("FREQ=WEEKLY;BYDAY=2MO", "FREQ=MONTHLY;BYMONTHDAY=32",
+                    "FREQ=YEARLY;BYMONTH=13", "FREQ=MONTHLY;BYDAY=MO;BYSETPOS=0"):
+            with self.subTest(bad=bad), self.assertRaises(recurrence.RuleError):
+                recurrence.parse(bad)
+
     def test_ended_rule_completes_normally(self):
         todo = self.create(due_at=iso(-60), repeat="FREQ=DAILY;COUNT=1")
         self.assertEqual(self.update(todo["id"], status="done")["status"], "done")

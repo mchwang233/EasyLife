@@ -185,10 +185,16 @@
       buttons = [];
       Array.prototype.forEach.call(options, function (option) {
         var value = option.getAttribute("value");
-        var button = el("button", "seg-btn", option.textContent.trim());
+        var button = el("button", "seg-btn" + (option.dataset.custom ? " is-custom" : ""), option.textContent.trim());
         button.type = "button";
         button.dataset.value = value;
         button.addEventListener("click", function () {
+          // 「自定义…」与已有的自定义规则：打开编辑面板，不直接改值。
+          if ((option.dataset.action === "custom" || option.dataset.custom) && select.openCustom) {
+            select.openCustom();
+            return;
+          }
+          if (select.closeCustom) { select.closeCustom(); }
           select.value = value;
           refreshPickers();
         });
@@ -517,6 +523,8 @@
 
   function initPickers() {
     Array.prototype.forEach.call(document.querySelectorAll(".seg"), enhanceSelect);
+    setupRepeatEditor("new");
+    setupRepeatEditor("d");
     Array.prototype.forEach.call(document.querySelectorAll(".dt"), enhanceDateTime);
     document.addEventListener("click", function (event) {
       if (!openPicker || !event.target.closest) { return; }
@@ -1661,13 +1669,317 @@
     if (state.tag) { $("#tag-filter-clear").focus(); }
   }
 
-  /* 「每周」「工作日」……；手机上设置的其他规则显示为「自定义重复」。 */
+  /* ------------------------------------------------------------ 自定义重复（同「提醒事项」的「自定义」） */
+
+  var RR_DAYS = ["MO", "TU", "WE", "TH", "FR", "SA", "SU"];
+  var RR_DAY_NAMES = { MO: "周一", TU: "周二", WE: "周三", TH: "周四", FR: "周五", SA: "周六", SU: "周日" };
+  var RR_ORDINALS = [["1", "第一个"], ["2", "第二个"], ["3", "第三个"], ["4", "第四个"], ["5", "第五个"], ["-1", "最后一个"]];
+  var RR_UNITS = { DAILY: "天", WEEKLY: "周", MONTHLY: "个月", YEARLY: "年" };
+  var RR_WORKDAYS = "MO,TU,WE,TH,FR";
+
+  function ruleParts(rule) {
+    var parts = {};
+    String(rule || "").toUpperCase().replace(/^RRULE:/, "").split(";").forEach(function (item) {
+      var pair = item.split("=");
+      if (pair.length === 2 && pair[0]) { parts[pair[0]] = pair[1]; }
+    });
+    return parts;
+  }
+
+  function ordinalName(n) {
+    var hit = RR_ORDINALS.filter(function (item) { return item[0] === String(Number(n)); })[0];
+    return hit ? hit[1] : "第 " + n + " 个";
+  }
+
+  function dayList(codes) {
+    var sorted = RR_DAYS.filter(function (code) { return codes.indexOf(code) !== -1; });
+    if (sorted.join(",") === RR_WORKDAYS) { return "工作日"; }
+    if (sorted.join(",") === "SA,SU") { return "周末"; }
+    return sorted.map(function (code) { return RR_DAY_NAMES[code]; }).join("、");
+  }
+
+  /* 「每 2 周的周一、周五」「每月最后一个工作日」……：规则 -> 中文。 */
+  function describeRule(rule) {
+    if (!rule) { return ""; }
+    var p = ruleParts(rule);
+    var unit = RR_UNITS[p.FREQ];
+    if (!unit) { return "自定义重复"; }
+    var n = Number(p.INTERVAL || 1);
+    var text = n > 1 ? "每 " + n + " " + unit : (p.FREQ === "WEEKLY" ? "每周" : "每" + (p.FREQ === "MONTHLY" ? "月" : unit));
+    var setPos = p.BYSETPOS ? p.BYSETPOS.split(",") : null;
+    var days = p.BYDAY ? p.BYDAY.split(",") : [];
+    var onText = "";
+    if (days.length && (p.FREQ === "MONTHLY" || p.FREQ === "YEARLY")) {
+      if (setPos && setPos.length === 1) {
+        var codes = days.join(",");
+        onText = ordinalName(setPos[0]) + (codes === RR_WORKDAYS ? "工作日" : codes === "SA,SU" ? "周末日" : codes === RR_DAYS.join(",") ? "日子" : dayList(days));
+      } else {
+        onText = days.map(function (token) {
+          var m = /^([+-]?\d)?([A-Z]{2})$/.exec(token);
+          return m ? (m[1] ? ordinalName(m[1]) : "每个") + RR_DAY_NAMES[m[2]] : token;
+        }).join("、");
+      }
+    }
+    if (p.FREQ === "WEEKLY" && days.length) {
+      var list = dayList(days);
+      text = n > 1 ? text + "的" + list : (list === "工作日" || list === "周末" ? "每个" + list : "每" + list);
+    }
+    if (p.FREQ === "YEARLY" && p.BYMONTH) {
+      text += "的 " + p.BYMONTH.split(",").map(function (m) { return Number(m) + " 月"; }).join("、");
+    }
+    if (p.BYMONTHDAY) {
+      text += (p.FREQ === "YEARLY" && p.BYMONTH ? " " : "的 ") + p.BYMONTHDAY.split(",").map(function (d) {
+        return Number(d) === -1 ? "最后一天" : Number(d) < 0 ? "倒数第 " + (-Number(d)) + " 天" : Number(d) + " 日";
+      }).join("、");
+    } else if (onText) {
+      text += "的" + onText;
+    }
+    if (p.COUNT) { text += "，还剩 " + Number(p.COUNT) + " 次"; }
+    if (p.UNTIL && /^\d{8}/.test(p.UNTIL)) { text += "，至 " + p.UNTIL.slice(0, 4) + "-" + p.UNTIL.slice(4, 6) + "-" + p.UNTIL.slice(6, 8); }
+    return text;
+  }
+
+  function toggleButton(label, pressed, onClick) {
+    var button = el("button", "rr-toggle", label);
+    button.type = "button";
+    button.setAttribute("aria-pressed", String(!!pressed));
+    button.addEventListener("click", onClick);
+    return button;
+  }
+
+  function rrSelect(className, options, value, onChange) {
+    var select = el("select", className);
+    options.forEach(function (item) {
+      var option = el("option", "", item[1]);
+      option.setAttribute("value", item[0]);
+      select.appendChild(option);
+    });
+    select.value = value;
+    select.addEventListener("change", function () { onChange(select.value); });
+    return select;
+  }
+
+  /* 每个「重复」下拉框各有一个面板：先读出当前规则（或按截止日期给默认值），完成时写回下拉框。 */
+  function setupRepeatEditor(prefix) {
+    var select = $("#" + prefix + "-repeat");
+    var holder = $(".seg[data-for='" + prefix + "-repeat']") || select;
+    var panel = el("div", "rr-panel");
+    panel.id = prefix + "-repeat-custom";
+    panel.setAttribute("role", "group");
+    panel.setAttribute("aria-label", "自定义重复");
+    panel.hidden = true;
+    holder.parentNode.appendChild(panel);
+    var st = null;
+
+    function dueDate() { return parseLocal($("#" + prefix + "-due").value) || new Date(); }
+
+    function load(rule) {
+      var due = dueDate();
+      var p = ruleParts(rule);
+      var weekday = RR_DAYS[(due.getDay() + 6) % 7];
+      st = {
+        freq: RR_UNITS[p.FREQ] ? p.FREQ : "WEEKLY",
+        interval: Number(p.INTERVAL || 1),
+        days: [weekday], monthMode: "each", monthDays: [due.getDate()], months: [due.getMonth() + 1],
+        ordinal: "1", which: weekday, yearOn: false,
+        keep: {}
+      };
+      if (p.COUNT) { st.keep.COUNT = p.COUNT; }
+      if (p.UNTIL) { st.keep.UNTIL = p.UNTIL; }
+      var days = p.BYDAY ? p.BYDAY.split(",") : [];
+      if (st.freq === "WEEKLY" && days.length) { st.days = days.filter(function (d) { return RR_DAYS.indexOf(d) !== -1; }); }
+      if (p.BYMONTHDAY) {
+        st.monthDays = p.BYMONTHDAY.split(",").map(Number).filter(function (d) { return d > 0; });
+        if (!st.monthDays.length) { st.monthDays = [due.getDate()]; }
+        if (Number(p.BYMONTHDAY) < 0) { st.monthMode = "on"; st.ordinal = p.BYMONTHDAY; st.which = "day"; }
+      }
+      if ((st.freq === "MONTHLY" || st.freq === "YEARLY") && days.length) {
+        var m = /^([+-]?\d)?([A-Z]{2})$/.exec(days[0]);
+        if (p.BYSETPOS) {
+          st.ordinal = String(Number(p.BYSETPOS.split(",")[0]));
+          st.which = days.join(",") === RR_WORKDAYS ? "weekday" : days.join(",") === "SA,SU" ? "weekend" : days.length === 7 ? "day" : days[0];
+        } else if (m) {
+          st.ordinal = m[1] ? String(Number(m[1])) : "1";
+          st.which = m[2];
+        }
+        st.monthMode = "on";
+        st.yearOn = true;
+      }
+      if (p.BYMONTH) { st.months = p.BYMONTH.split(",").map(Number); }
+    }
+
+    function build() {
+      var parts = ["FREQ=" + st.freq];
+      if (st.interval > 1) { parts.push("INTERVAL=" + st.interval); }
+      var onRule = function (allowSpecial) {
+        var which = allowSpecial ? st.which : (RR_DAYS.indexOf(st.which) === -1 ? "MO" : st.which);
+        if (which === "day") { return st.ordinal === "-1" ? ["BYMONTHDAY=-1"] : ["BYMONTHDAY=" + st.ordinal]; }
+        if (which === "weekday") { return ["BYDAY=" + RR_WORKDAYS, "BYSETPOS=" + st.ordinal]; }
+        if (which === "weekend") { return ["BYDAY=SA,SU", "BYSETPOS=" + st.ordinal]; }
+        return ["BYDAY=" + st.ordinal + which];
+      };
+      if (st.freq === "WEEKLY" && st.days.length) {
+        parts.push("BYDAY=" + RR_DAYS.filter(function (d) { return st.days.indexOf(d) !== -1; }).join(","));
+      }
+      if (st.freq === "MONTHLY") {
+        if (st.monthMode === "on") { parts = parts.concat(onRule(true)); }
+        else if (st.monthDays.length) { parts.push("BYMONTHDAY=" + st.monthDays.slice().sort(function (a, b) { return a - b; }).join(",")); }
+      }
+      if (st.freq === "YEARLY") {
+        var months = st.months.length ? st.months : [dueDate().getMonth() + 1];
+        parts.push("BYMONTH=" + months.slice().sort(function (a, b) { return a - b; }).join(","));
+        if (st.yearOn) { parts = parts.concat(onRule(false)); }
+      }
+      Object.keys(st.keep).forEach(function (key) { parts.push(key + "=" + st.keep[key]); });
+      return parts.join(";");
+    }
+
+    function toggleIn(list, item) {
+      var at = list.indexOf(item);
+      if (at === -1) { list.push(item); } else if (list.length > 1) { list.splice(at, 1); }
+    }
+
+    function render() {
+      panel.replaceChildren();
+      var freqRow = el("div", "rr-seg");
+      freqRow.setAttribute("role", "group");
+      freqRow.setAttribute("aria-label", "频率");
+      [["DAILY", "每天"], ["WEEKLY", "每周"], ["MONTHLY", "每月"], ["YEARLY", "每年"]].forEach(function (item) {
+        var button = toggleButton(item[1], st.freq === item[0], function () { st.freq = item[0]; render(); });
+        button.className = "seg-btn" + (st.freq === item[0] ? " is-active" : "");
+        freqRow.appendChild(button);
+      });
+      panel.appendChild(freqRow);
+
+      var every = el("div", "rr-every");
+      every.appendChild(el("span", "", "每"));
+      var interval = el("input", "rr-interval");
+      interval.type = "number";
+      interval.setAttribute("min", "1");
+      interval.setAttribute("max", "999");
+      interval.setAttribute("inputmode", "numeric");
+      interval.setAttribute("aria-label", "间隔");
+      interval.value = String(st.interval);
+      interval.addEventListener("input", function () {
+        var n = Math.floor(Number(interval.value));
+        if (n >= 1 && n <= 999) { st.interval = n; summary(); }
+      });
+      every.appendChild(interval);
+      every.appendChild(el("span", "", RR_UNITS[st.freq]));
+      panel.appendChild(every);
+
+      if (st.freq === "WEEKLY") {
+        var week = el("div", "rr-grid rr-week");
+        week.setAttribute("role", "group");
+        week.setAttribute("aria-label", "星期");
+        RR_DAYS.forEach(function (code) {
+          week.appendChild(toggleButton(RR_DAY_NAMES[code].slice(1), st.days.indexOf(code) !== -1, function () { toggleIn(st.days, code); render(); }));
+        });
+        panel.appendChild(week);
+      }
+      if (st.freq === "MONTHLY") {
+        var mode = el("div", "rr-seg");
+        mode.setAttribute("role", "group");
+        mode.setAttribute("aria-label", "按日期或星期");
+        [["each", "按日期"], ["on", "按星期"]].forEach(function (item) {
+          var button = toggleButton(item[1], st.monthMode === item[0], function () { st.monthMode = item[0]; render(); });
+          button.className = "seg-btn" + (st.monthMode === item[0] ? " is-active" : "");
+          mode.appendChild(button);
+        });
+        panel.appendChild(mode);
+        if (st.monthMode === "each") {
+          var dates = el("div", "rr-grid rr-dates");
+          dates.setAttribute("role", "group");
+          dates.setAttribute("aria-label", "每月的日期");
+          for (var d = 1; d <= 31; d += 1) {
+            (function (day) {
+              dates.appendChild(toggleButton(String(day), st.monthDays.indexOf(day) !== -1, function () { toggleIn(st.monthDays, day); render(); }));
+            })(d);
+          }
+          panel.appendChild(dates);
+        } else {
+          panel.appendChild(onRow(true));
+        }
+      }
+      if (st.freq === "YEARLY") {
+        var months = el("div", "rr-grid rr-months");
+        months.setAttribute("role", "group");
+        months.setAttribute("aria-label", "月份");
+        for (var m = 1; m <= 12; m += 1) {
+          (function (month) {
+            months.appendChild(toggleButton(month + " 月", st.months.indexOf(month) !== -1, function () { toggleIn(st.months, month); render(); }));
+          })(m);
+        }
+        panel.appendChild(months);
+        var onToggle = el("label", "rr-check");
+        var box = el("input");
+        box.type = "checkbox";
+        box.checked = st.yearOn;
+        box.addEventListener("change", function () { st.yearOn = box.checked; render(); });
+        onToggle.appendChild(box);
+        onToggle.appendChild(el("span", "", "指定星期"));
+        panel.appendChild(onToggle);
+        if (st.yearOn) { panel.appendChild(onRow(false)); }
+      }
+
+      var text = el("p", "rr-summary");
+      text.setAttribute("aria-live", "polite");
+      panel.appendChild(text);
+
+      var actions = el("div", "rr-actions");
+      var done = el("button", "btn primary", "完成");
+      done.type = "button";
+      done.addEventListener("click", function () {
+        var rule = build();
+        close();
+        setChoice(select, rule, describeRule(rule));
+        refreshPickers();
+      });
+      var cancel = el("button", "btn ghost", "取消");
+      cancel.type = "button";
+      cancel.addEventListener("click", function () { close(); });
+      actions.appendChild(done);
+      actions.appendChild(cancel);
+      panel.appendChild(actions);
+      summary();
+    }
+
+    function onRow(allowSpecial) {
+      var row = el("div", "rr-on");
+      row.appendChild(rrSelect("rr-ordinal", RR_ORDINALS, st.ordinal, function (value) { st.ordinal = value; summary(); }));
+      var whichOptions = RR_DAYS.map(function (code) { return [code, RR_DAY_NAMES[code]]; });
+      if (allowSpecial) { whichOptions = whichOptions.concat([["day", "天"], ["weekday", "工作日"], ["weekend", "周末日"]]); }
+      var which = allowSpecial || RR_DAYS.indexOf(st.which) !== -1 ? st.which : "MO";
+      st.which = which;
+      row.appendChild(rrSelect("rr-which", whichOptions, which, function (value) { st.which = value; summary(); }));
+      return row;
+    }
+
+    function summary() {
+      var text = panel.querySelector(".rr-summary");
+      if (text) { setText(text, describeRule(build())); }
+    }
+
+    function close() { panel.hidden = true; }
+
+    select.openCustom = function () {
+      var current = select.value && select.value !== "__custom__" ? select.value : "";
+      load(current);
+      render();
+      panel.hidden = false;
+      var first = panel.querySelector(".seg-btn");
+      if (first) { first.focus(); }
+    };
+    select.closeCustom = close;
+  }
+
+  /* 「每周」「工作日」……；其他规则（自定义、手机上设置的）用 describeRule 描述。 */
   function repeatLabel(rule) {
     if (!rule) { return ""; }
     var match = Array.prototype.filter.call($("#d-repeat").querySelectorAll("option"), function (option) {
-      return option.getAttribute("value") === rule && !option.dataset.custom;
+      return option.getAttribute("value") === rule && !option.dataset.custom && !option.dataset.action;
     })[0];
-    return match ? match.textContent.trim() : "自定义重复";
+    return match ? match.textContent.trim() : describeRule(rule);
   }
 
   function todoItem(todo, nested) {
@@ -1861,6 +2173,10 @@
       option.setAttribute("value", value);
       option.dataset.custom = "1";
       select.appendChild(option);
+      // 「自定义…」始终排在最后。
+      Array.prototype.forEach.call(select.querySelectorAll("option"), function (other) {
+        if (other.dataset.action) { select.appendChild(other); }
+      });
     }
     select.value = value;
   }
@@ -2195,7 +2511,8 @@
       $("#create-form").reset();
       $("#new-priority").value = "2";
       $("#new-early").value = "";
-      $("#new-repeat").value = "";
+      $("#new-repeat").closeCustom();
+      setChoice($("#new-repeat"), "");
       $("#new-flagged").checked = false;
       $("#new-urgent").checked = false;
       setTags("new-tags", []);
@@ -2247,7 +2564,8 @@
     $("#d-due").value = toLocalInput(todo.due_at);
     var early = earlyMinutes(todo);
     setChoice($("#d-early"), early, early ? "提前 " + durationLabel(Number(early)) : "");
-    setChoice($("#d-repeat"), todo.repeat || "", "自定义重复");
+    $("#d-repeat").closeCustom();
+    setChoice($("#d-repeat"), todo.repeat || "", describeRule(todo.repeat));
     $("#d-flagged").checked = !!todo.flagged;
     $("#d-urgent").checked = !!todo.urgent;
     setTags("d-tags", todo.tags || []);

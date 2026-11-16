@@ -1189,3 +1189,33 @@ body.has-modal { overflow: hidden; }
 .dav-steps li + li { margin-top: 2px; }
 #dav-password-box input { font-weight: 600; letter-spacing: .04em; }
 #dav-state { margin: var(--space-2) 0 var(--space-3); }
+
+/* ------------------------------------------------------------ 自定义重复 */
+
+.rr-panel {
+  display: grid; gap: var(--space-3, 12px);
+  margin-top: 8px; padding: 12px;
+  background: var(--card); border: 1px solid var(--line); border-radius: var(--radius-sm);
+}
+.rr-panel[hidden] { display: none; }
+.rr-seg { display: flex; gap: 2px; padding: 3px; background: var(--surface); border-radius: 10px; }
+.rr-every, .rr-on { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.rr-interval { width: 5em; text-align: center; }
+.rr-on select { width: auto; flex: 1 1 8em; }
+.rr-grid { display: grid; gap: 4px; }
+.rr-week { grid-template-columns: repeat(7, minmax(0, 1fr)); }
+.rr-dates { grid-template-columns: repeat(7, minmax(0, 1fr)); }
+.rr-months { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+.rr-toggle {
+  min-height: 34px; min-width: 0; padding: 0 4px;
+  border: 1px solid var(--line); border-radius: 7px;
+  background: transparent; color: var(--text);
+  font: inherit; font-size: .875rem; cursor: pointer;
+}
+.rr-toggle:hover { border-color: var(--primary); }
+.rr-toggle[aria-pressed="true"] { background: var(--primary); border-color: var(--primary); color: var(--on-primary); font-weight: 600; }
+.rr-check { display: flex; align-items: center; gap: 8px; cursor: pointer; }
+.rr-check input { width: auto; }
+.rr-summary { margin: 0; color: var(--muted); font-size: .875rem; }
+.rr-actions { display: flex; gap: 8px; justify-content: flex-end; }
+.seg-btn.is-custom { white-space: normal; line-height: 1.2; }
