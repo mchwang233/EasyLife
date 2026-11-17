@@ -690,7 +690,7 @@ select {
   content: ""; position: absolute; inset: -12px;
 }
 .check::after {
-  content: ""; position: absolute; left: 5px; top: 2px;
+  content: ""; position: absolute; left: 5.5px; top: 3px;
   width: 4px; height: 8px;
   border: solid var(--on-primary); border-width: 0 2px 2px 0;
   transform: rotate(45deg) scale(0);
@@ -859,7 +859,7 @@ select {
 .md-task.is-checked > span:last-child { color: var(--muted); text-decoration: line-through; }
 .md-task.is-checked .md-box { background: var(--primary); border-color: var(--primary); }
 .md-task.is-checked .md-box::after {
-  content: ""; position: absolute; left: 3.5px; top: .5px;
+  content: ""; position: absolute; left: 4.25px; top: 1.75px;
   width: 3px; height: 7px;
   border: solid var(--on-primary); border-width: 0 1.5px 1.5px 0;
   transform: rotate(45deg);
@@ -898,7 +898,7 @@ button.md-box {
 }
 button.md-box:hover { border-color: var(--primary); }
 .md-task.is-checked button.md-box { background: var(--primary); }
-.md-task.is-checked button.md-box::after { left: 4.5px; top: 1.5px; }
+.md-task.is-checked button.md-box::after { left: 5.25px; top: 2.5px; }
 
 .md-preview {
   min-height: 76px;
