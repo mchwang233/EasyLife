@@ -5,6 +5,24 @@
 - 后端只用 **Python 3.8+ 标准库**，前端是原生 HTML / CSS / JS，没有任何第三方依赖或外链 CDN。
 - 数据存在一个 SQLite 文件里。
 
+![任务列表](docs/images/desktop-list.png)
+
+## 截图
+
+| 任务详情与进展笔记 | 深色模式 |
+| --- | --- |
+| ![任务详情](docs/images/desktop-detail.png) | ![深色模式](docs/images/desktop-list-dark.png) |
+
+手机上同样好用：
+
+<p>
+  <img src="docs/images/mobile-list.png" alt="手机端任务列表" width="280">
+  &nbsp;
+  <img src="docs/images/mobile-detail.png" alt="手机端任务详情" width="280">
+</p>
+
+> 截图中的账户和任务都是示例数据。
+
 ## 功能
 
 | 模块 | 功能 |
@@ -68,5 +86,5 @@ easylife/          程序代码
   static/          网页前端
 tests/             测试
 deploy/            部署、备份脚本与服务器配置模板
-docs/              设计文档 DESIGN.md、部署指南 DEPLOY.md
+docs/              设计文档 DESIGN.md、部署指南 DEPLOY.md、README 截图 images/
 ```
