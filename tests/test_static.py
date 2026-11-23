@@ -265,6 +265,7 @@ class FrontendSourceTests(unittest.TestCase):
         pairs = [(foreground, background, 4.5) for foreground in ("text", "muted")
                  for background in ("bg", "card", "surface")]
         pairs += [("on-primary", "primary", 4.5), ("on-primary", "primary-hover", 4.5),
+                  ("on-selected", "selected", 4.5),
                   ("primary", "primary-soft", 4.5), ("danger", "danger-bg", 4.5),
                   ("ok", "ok-bg", 4.5), ("warn", "warn-bg", 4.5),
                   ("input-line", "card", 3), ("focus", "bg", 3), ("focus", "card", 3)]
