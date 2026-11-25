@@ -2,37 +2,38 @@
  * 布局原则：一列为主、信息密度适中；任务一行一条，只显示有信息量的标记。 */
 :root {
   color-scheme: light;
-  --bg: #f7f7f5;
+  /* 中性底色承载内容；蓝色统一表示操作与选中，状态色只用于提醒。 */
+  --bg: #f6f7f9;
   --card: #ffffff;
-  --surface: #f3f2ee;
-  --text: #20201f;
-  --muted: #62625c;
-  --line: #e5e5df;
-  --input-line: #8a8a81;
-  --primary: #20201f;
-  --primary-hover: #3b3b36;
+  --surface: #f0f2f5;
+  --text: #252a32;
+  --muted: #606b7a;
+  --line: #e1e5eb;
+  --input-line: #7d8999;
+  --primary: #3563b5;
+  --primary-hover: #294f94;
   --on-primary: #ffffff;
-  --primary-soft: #e7f1fa;
-  --selected: #9bc5eb;
-  --on-selected: #20201f;
-  --danger: #a6303e;
-  --danger-bg: #fff0f0;
-  --ok: #216244;
-  --ok-bg: #e5f3e9;
-  --warn: #78500e;
-  --warn-bg: #fff2d9;
-  --focus: #39658a;
-  --hover: rgb(32 32 31 / 4%);
+  --primary-soft: #edf2fb;
+  --selected: #e2ebfa;
+  --on-selected: #294f94;
+  --danger: #b13746;
+  --danger-bg: #fceef0;
+  --ok: #28704e;
+  --ok-bg: #eaf4ee;
+  --warn: #855a18;
+  --warn-bg: #faf2e3;
+  --focus: #3563b5;
+  --hover: rgb(37 42 50 / 4%);
   /* 优先级：高=红、中=琥珀、低=蓝、最低=灰；文字色与对应浅底均 ≥ 4.5:1。 */
-  --p3: #b4232f; --p3-bg: #fdeced;
-  --p2: #8a5300; --p2-bg: #fcf0d9;
-  --p1: #23599a; --p1-bg: #e6eefa;
-  --p0: #62625c; --p0-bg: #f0f0ec;
-  --scrim: rgb(32 32 31 / 40%);
+  --p3: #b13746; --p3-bg: #fceef0;
+  --p2: #855a18; --p2-bg: #faf2e3;
+  --p1: #3563b5; --p1-bg: #edf2fb;
+  --p0: #606b7a; --p0-bg: #f0f2f5;
+  --scrim: rgb(20 25 35 / 40%);
   --radius: 14px;
   --radius-sm: 8px;
-  --shadow: 0 1px 3px rgb(32 32 31 / 4%);
-  --shadow-lift: 0 12px 36px rgb(32 32 31 / 10%);
+  --shadow: 0 1px 3px rgb(20 25 35 / 4%);
+  --shadow-lift: 0 12px 36px rgb(20 25 35 / 10%);
   --space-1: 4px;
   --space-2: 8px;
   --space-3: 12px;
@@ -47,28 +48,30 @@
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme="light"]) {
     color-scheme: dark;
-    --bg: #181917; --card: #22231f; --surface: #2d2e29;
-    --text: #f3f3ed; --muted: #b8b9ae; --line: #3c3d36; --input-line: #898b7d;
-    --primary: #f3f3ed; --primary-hover: #ffffff; --on-primary: #20201f; --primary-soft: #293d4c;
-    --danger: #ffb4bb; --danger-bg: #442830; --ok: #9eddb5; --ok-bg: #243e2f;
-    --warn: #f5d18d; --warn-bg: #403520; --focus: #9bc5eb;
-    --hover: rgb(243 243 237 / 6%); --scrim: rgb(0 0 0 / 60%);
-    --p3: #ffb0b7; --p3-bg: #4a2329; --p2: #f5c97a; --p2-bg: #423419;
-    --p1: #a9c8ff; --p1-bg: #1f3550; --p0: #b8b9ae; --p0-bg: #33342e;
+    --bg: #17191d; --card: #202328; --surface: #2a2e35;
+    --text: #eef0f4; --muted: #acb3bf; --line: #3a414c; --input-line: #7d8999;
+    --primary: #a2bff2; --primary-hover: #c1d4f6; --on-primary: #172b4d; --primary-soft: #2a384e;
+    --selected: #303f58; --on-selected: #d8e7ff;
+    --danger: #f0a6af; --danger-bg: #402a30; --ok: #97cdb0; --ok-bg: #263a30;
+    --warn: #dfbf88; --warn-bg: #3b3326; --focus: #a2bff2;
+    --hover: rgb(238 240 244 / 5%); --scrim: rgb(0 0 0 / 60%);
+    --p3: #f0a6af; --p3-bg: #402a30; --p2: #dfbf88; --p2-bg: #3b3326;
+    --p1: #a2bff2; --p1-bg: #2a384e; --p0: #acb3bf; --p0-bg: #2a2e35;
     --shadow: 0 1px 2px rgb(0 0 0 / 25%); --shadow-lift: 0 12px 40px rgb(0 0 0 / 45%);
   }
 }
 
 :root[data-theme="dark"] {
   color-scheme: dark;
-  --bg: #181917; --card: #22231f; --surface: #2d2e29;
-  --text: #f3f3ed; --muted: #b8b9ae; --line: #3c3d36; --input-line: #898b7d;
-  --primary: #f3f3ed; --primary-hover: #ffffff; --on-primary: #20201f; --primary-soft: #293d4c;
-  --danger: #ffb4bb; --danger-bg: #442830; --ok: #9eddb5; --ok-bg: #243e2f;
-  --warn: #f5d18d; --warn-bg: #403520; --focus: #9bc5eb;
-  --hover: rgb(243 243 237 / 6%); --scrim: rgb(0 0 0 / 60%);
-  --p3: #ffb0b7; --p3-bg: #4a2329; --p2: #f5c97a; --p2-bg: #423419;
-  --p1: #a9c8ff; --p1-bg: #1f3550; --p0: #b8b9ae; --p0-bg: #33342e;
+  --bg: #17191d; --card: #202328; --surface: #2a2e35;
+  --text: #eef0f4; --muted: #acb3bf; --line: #3a414c; --input-line: #7d8999;
+  --primary: #a2bff2; --primary-hover: #c1d4f6; --on-primary: #172b4d; --primary-soft: #2a384e;
+  --selected: #303f58; --on-selected: #d8e7ff;
+  --danger: #f0a6af; --danger-bg: #402a30; --ok: #97cdb0; --ok-bg: #263a30;
+  --warn: #dfbf88; --warn-bg: #3b3326; --focus: #a2bff2;
+  --hover: rgb(238 240 244 / 5%); --scrim: rgb(0 0 0 / 60%);
+  --p3: #f0a6af; --p3-bg: #402a30; --p2: #dfbf88; --p2-bg: #3b3326;
+  --p1: #a2bff2; --p1-bg: #2a384e; --p0: #acb3bf; --p0-bg: #2a2e35;
   --shadow: 0 1px 2px rgb(0 0 0 / 25%); --shadow-lift: 0 12px 40px rgb(0 0 0 / 45%);
 }
 
@@ -332,9 +335,9 @@ select {
 }
 .seg[data-for$="priority"] .seg-btn.is-active { background: var(--pb); color: var(--pc); box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--pc) 35%, transparent); }
 /* 状态：同一种做法——浅色底 + 同色文字 + 阴影，只靠色相区分（待办保持白底）。
-   底色按比例混入 --card，浅色/深色主题下文字对比度都 ≥ 5:1，且与分段底色 --surface 区分得开。 */
+   底色按比例混入 --card，浅色/深色主题下文字对比度都 ≥ 4.5:1，且与分段底色 --surface 区分得开。 */
 .seg[data-for="d-status"] .seg-btn.is-active[data-value="doing"] { --sc: var(--p1); --sp: 18%; }
-.seg[data-for="d-status"] .seg-btn.is-active[data-value="done"] { --sc: var(--ok); --sp: 20%; }
+.seg[data-for="d-status"] .seg-btn.is-active[data-value="done"] { --sc: var(--ok); --sp: 18%; }
 .seg[data-for="d-status"] .seg-btn.is-active[data-value="archived"] { --sc: var(--muted); --sp: 22%; --st: var(--text); }
 .seg[data-for="d-status"] .seg-btn.is-active:not([data-value="open"]) {
   background: color-mix(in srgb, var(--sc) var(--sp), var(--card)); color: var(--st, var(--sc));
